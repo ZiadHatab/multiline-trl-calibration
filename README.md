@@ -74,7 +74,7 @@ Las Vegas, NV USA, January 17-18, 2022 (accepted for presentation)
     
     [Multiline TRL revealed](https://ieeexplore.ieee.org/document/1218696)
     
-- R. B. Marks, "A multiline method of network analyzer calibration",
+- [3] R. B. Marks, "A multiline method of network analyzer calibration",
 IEEE Transactions on Microwave Theory and Techniques,
 vol. 39, no. 7, pp. 1205-1215, July 1991.
     
