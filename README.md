@@ -65,7 +65,7 @@ By no means is this a final release. There are still functions I need to impleme
 of the Multiline TRL Calibration Algorithm," 98th ARFTG Conference, 
 Las Vegas, NV USA, January 17-18, 2022 (accepted for presentation)
     
-    (I will include a url when the paper is listed on [https://ieeexplore.ieee.org/](https://ieeexplore.ieee.org/))
+    (I will include a url when the paper is listed in [https://ieeexplore.ieee.org/](https://ieeexplore.ieee.org/))
     
 - [2] D. C. DeGroot, J. A. Jargon and R. B. Marks, "Multiline TRL revealed,"
 60th ARFTG Conference Digest, Fall 2002., pp. 131-155
