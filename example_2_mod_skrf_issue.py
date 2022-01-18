@@ -82,7 +82,7 @@ if __name__ == '__main__':
     calskrf = rf.calibration.NISTMultilineTRL(
         measured= [lines[0]] + reflect + lines[1:],
         Grefls = reflect_est,
-        l = line_lengths,
+        l = [l-line_lengths[0] for l in line_lengths],
         switch_terms=[gamma_f, gamma_r])
     calskrf.run()
     L5_cal_skrf = calskrf.apply_cal(L5)
