@@ -179,7 +179,7 @@ class mTRL:
         self.abs_lambda = np.array(abs_lambda_full)
         
     def apply_cal(self, NW):
-        # apply calibration to a 1- or 2-port network
+        # apply calibration to a 2-port network
         X = self.X
         K = self.K
                 
