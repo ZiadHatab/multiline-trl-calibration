@@ -64,8 +64,7 @@ Also, I will try to inlcude a more proper documentation...
 ## References
 
 - [1] Ziad Hatab, Michael Gadringer, Wolfgang Boesch, "Improving the Reliability
-of the Multiline TRL Calibration Algorithm," 98th ARFTG Conference, 
-Las Vegas, NV USA, January 17-18, 2022 (accepted for presentation)
+of the Multiline TRL Calibration Algorithm," presented at 98th ARFTG Conference, Jan. 2022
     
     (I will include a url when the paper is listed in [https://ieeexplore.ieee.org/](https://ieeexplore.ieee.org/))
     
