@@ -57,9 +57,7 @@ Note: the NIST MultiCal implementation I used is not imported from skrf, but I w
 
 ## Work in Progress
 
-By no means is this a final release. There are still functions I need to implement, like shifting the reference plane (now it is in the middle of the Thru standard). Also, to re-normalize the calibration impedance... and many other small tweaks.
-
-Also, I will try to inlcude a more proper documentation...
+By no means is this a final release. There are still functions I want to implement, and also I will try to inlcude a more proper documentation...
 
 ## References
 
