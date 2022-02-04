@@ -2,7 +2,7 @@
 
 Implementation of multiline TRL calibration. Two algorithms are included here:
 
-1. An “improved” implementation based on a paper of mine [1].
+1. An “improved” implementation based on a work of mine [1].
 2. The classical MultiCal implementation from NIST [2,3].
 
 ## Difference between implementations
@@ -23,11 +23,7 @@ TUG mTRL [1]:
 
 The simple answer is that it does not enforces any assumption on the quality of your measurements. It just give the best solution it can deliver given what you provided it.
 
-A more involved answer is it computes a “true mean value” of your calibration even if high noise is present in your measurements. 
-So, the linearity imposed in NIST MultiCal can only hold true if the error in the measurement is low. 
-Generally, if we have clean data (minimum error), both mTRL methods will give same result. But, the moment your measurements have some error, the result between TUG mTRL and NIST MultiCal will differ differently from the true solution (noiseless solution), depending how high the error is. 
-If the error is small, then TUG mTRL and NIST MultiCal will equally deviate from the true solution. But, the moment the error in the measurements is too high, then NIST MultiCal will differ quite dramatically from the true solution. This is because linearity assumption was violated and thus Gauss-Markov estimator is not valid anymore.
-So, if you perform a statistical experiment (assume noise is too high) and take the mean value of both NIST MultiCal, and TUG mTRL. You will find that TUG mTRL will converge to the true solution (un-biased), while NIST MultiCal will converge to a wrong solution (biased).
+I will include a documentation in the future...
 
 ## Code requirements
 
