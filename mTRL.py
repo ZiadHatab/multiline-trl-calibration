@@ -136,6 +136,7 @@ class mTRL:
         self.X = np.array(X_full)
         self.K = np.array(K_full)
         self.gamma = np.array(gamma_full)
+        self.error_coef()
         
     def run_tug(self):
         print('\nTUG mTRL in progress:')
@@ -177,6 +178,7 @@ class mTRL:
         self.K = np.array(K_full)
         self.gamma = np.array(gamma_full)
         self.abs_lambda = np.array(abs_lambda_full)
+        self.error_coef()
         
     def apply_cal(self, NW):
         # apply calibration to a 2-port network
@@ -192,13 +194,58 @@ class mTRL:
         
         return rf.Network(frequency=freq, s=rf.t2s(T_cal))
     
-    def shift_plane(self):
-        # shift calibration plane
-        # i will code this later
-        pass
+    def error_coef(self):
+        X = self.X
+        self.coefs = {}
+        # forward errors
+        self.coefs['ERF'] =  X[:,2,2] - X[:,2,3]*X[:,3,2]
+        self.coefs['EDF'] =  X[:,2,3]
+        self.coefs['ESF'] = -X[:,3,2]
+        
+        # reverse errors
+        self.coefs['ERR'] =  X[:,1,1] - X[:,3,1]*X[:,1,3]
+        self.coefs['EDR'] = -X[:,1,3]
+        self.coefs['ESR'] =  X[:,3,1]
+        
+        
+    def shift_plane(self, d=0):
+        # shift calibration plane by distance d
+        # negative: shift toward port
+        # positive: shift away from port
+        # E.g., if your Thru has a length of L, 
+        # then d=-L/2 to shift the plane backward 
+        
+        X_new = []
+        K_new = []
+        for x,k,g in zip(self.X, self.K, self.gamma):
+            X_new.append( x@np.diag([np.exp(-g*d*4), np.exp(-g*d*2), 
+                                     np.exp(-g*d*2), 1]) )
+            K_new.append( k*np.exp(g*d*2) )
+            
+        self.X = np.array(X_new)
+        self.K = np.array(K_new)
     
-    def renorm_impedance(self):
-        # re-normalize calibration plane
-        # i will code this later
-        pass
+    def renorm_impedance(self, Z_new, Z0=50):
+        # re-normalize reference calibration impedance
+        # by default, the ref impedance is the characteristic 
+        # impedance of the line standards.
+        
+        # Z_new: new ref. impedance (can be array if frequency dependent)
+        # Z0: old ref. impedance (can be array if frequency dependent)
+        
+        # ensure correct array dimensions (if not, you get an error!)
+        N = len(self.K)
+        Z_new = Z_new*np.ones(N)
+        Z0    = Z0*np.ones(N)
+        
+        G = (Z_new-Z0)/(Z_new+Z0)
+        X_new = []
+        K_new = []
+        for x,k,g in zip(self.X, self.K, G):
+            xx = x@np.kron([[1, -g],[-g, 1]],[[1, g],[g, 1]])
+            X_new.append( xx/xx[-1,-1] )
+            K_new.append( k*xx[-1,-1]/(1-g**2) )
+
+        self.X = np.array(X_new)
+        self.K = np.array(K_new)
     
