@@ -51,9 +51,7 @@ This example demonstrate how to do a full 1st tier calibration (including switch
 
 ### example 3:
 
-I will include this later, but the idea is use simulated data. An example of simulated data can be found in skrf website: [https://scikit-rf.readthedocs.io/en/latest/examples/metrology/Multiline TRL.html](https://scikit-rf.readthedocs.io/en/latest/examples/metrology/Multiline%20TRL.html)
-
-Note: the NIST MultiCal implementation I used is not imported from skrf, but I wrote it myself based on [2,3].
+This example demonstrate how to do a mTRL calibration using simulated data from skrf package. You can adjust the simulated data to test various scenarios.
 
 ## Work in Progress
 
