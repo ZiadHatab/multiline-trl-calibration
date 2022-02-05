@@ -47,7 +47,11 @@ This example demonstrate how to do a full 1st tier calibration (including switch
 
 ### example 3:
 
-This example demonstrate how to do a mTRL calibration using simulated data from skrf package. You can adjust the simulated data to test various scenarios.
+This example demonstrate how to do a mTRL calibration using simulated data from skrf package. You can adjust the simulated data to test various scenarios. 
+
+### example 4:
+
+This example demonstrate how to do a statistical analysis on mTRL calibration via Monte-Carlo method. For this example I used the data from example_1, where I provided options (uncomment to use) to analyze the cases of additive noise, or phase error. You can create other types of analysis.
 
 ## Work in Progress
 
