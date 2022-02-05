@@ -105,7 +105,7 @@ def mTRL(meas_lines_T, line_lengths, meas_reflect_S, ereff_est, reflect_est, ref
     else:
         #options={'rhobeg': 1.0, 'maxiter': 1000, 'disp': False, 'catol': 1e-8}
         xx = so.minimize(findereff, [ereff_est.real, ereff_est.imag], 
-                         method='COBYLA',#options=options,tol=1e-8,
+                         method='COBYLA', #options=options, tol=1e-8,
                        args=(Dinv@M.T@P@Q@M, line_lengths, f))
         ereff = xx.x[0] + 1j*xx.x[1]
         gamma = 2*np.pi*f/c0*np.sqrt(-ereff)
