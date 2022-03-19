@@ -36,8 +36,7 @@ Some concerns regarding [1]:
     
     
 [1] D. C. DeGroot, J. A. Jargon and R. B. Marks, "Multiline TRL revealed," 
-60th ARFTG Conference Digest, Fall 2002., 
-2002, pp. 131-155, doi: 10.1109/ARFTGF.2002.1218696.
+60th ARFTG Conference Digest, Fall 2002, pp. 131-155
 
 [2] R. B. Marks, "A multiline method of network analyzer calibration", 
 IEEE Transactions on Microwave Theory and Techniques, 
@@ -281,7 +280,7 @@ def mTRL(line_meas_T, line_lengths, meas_reflect_S, gamma_est, reflect_est, refl
     B2  = BLUE(np.ones(N-1), Bs,   VB(gamma, line_length_com, line_lengths))
     
     '''
-    # The original method MultiCal uses... not recommended!
+    # The original method MultiCal uses to compute A1A2 and R1R2... not recommended!
     # solve for A1A2 and R1R2 from Thru measurements
     S11,S12,S21,S22 = meas_Thru_S.flatten()
     A1A2 = -(B1*B2-B1*S22-B2*S11+(S11*S22-S21*S12))/(1-CA1*S11-CA2*S22+CA1*CA2*(S11*S22-S21*S12))
@@ -353,7 +352,6 @@ def mTRL(line_meas_T, line_lengths, meas_reflect_S, gamma_est, reflect_est, refl
     https://en.wikipedia.org/wiki/Kronecker_product
     https://en.wikipedia.org/wiki/Vectorization_(mathematics)
     ############-END-############
-    
     '''
     
     return X, K, gamma

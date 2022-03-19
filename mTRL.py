@@ -7,8 +7,9 @@ import numpy as np
 c0 = 299792458   # speed of light in vacuum (m/s)
 
 def correct_sw(NW, gamma_f, gamma_r):
-    # gamma_f forward
-    # gamma_r reverse
+    # correct for switch-terms
+    # gamma_f forward (source by port-1)
+    # gamma_r reverse (source by port-2)
     
     G21 = gamma_f.s.squeeze()
     G12 = gamma_r.s.squeeze()
@@ -34,16 +35,13 @@ class mTRL:
 
     [1] Ziad Hatab, Michael Gadringer, Wolfgang Boesch, "Improving the Reliability 
     of the Multiline TRL Calibration Algorithm," 98th ARFTG Conference, Jan. 2022
-    (accepted for presentation)
     
     [2] D. C. DeGroot, J. A. Jargon and R. B. Marks, "Multiline TRL revealed," 
-    60th ARFTG Conference Digest, Fall 2002., 
-    2002, pp. 131-155, doi: 10.1109/ARFTGF.2002.1218696.
+    60th ARFTG Conference Digest, Fall 2002, pp. 131-155
     
     [3] R. B. Marks, "A multiline method of network analyzer calibration", 
     IEEE Transactions on Microwave Theory and Techniques, 
     vol. 39, no. 7, pp. 1205-1215, July 1991.
-    
     """
     
     def __init__(self, lines, line_lengths, reflect, 
@@ -80,7 +78,7 @@ class mTRL:
         switch_term : list of :class:`~skrf.network.Network`
             list of 1-port networks. Holds 2 elements:
                 1. network for forward switch term.
-                2. network of reverse switch term.
+                2. network for reverse switch term.
         """
         
         self.lines = lines
@@ -97,12 +95,13 @@ class mTRL:
             self.reflect = [correct_sw(NT, switch_term[0], switch_term[1]) for NT in self.reflect]
                 
     def run_multical(self):
+        # MultiCal
         print('\nMultiCal mTRL in progress:')
         f = self.lines[0].frequency.f
     
         # measurements 
-        T_lines = [ rf.s2t(x.s) for x in self.lines]
-        S_short = [ x.s for x in self.reflect]
+        T_lines = [ rf.s2t(x.s) for x in self.lines ]
+        S_short = [ x.s for x in self.reflect ]
         
         line_lengths = self.line_lengths
         reflect_est  = self.reflect_est
@@ -122,7 +121,6 @@ class mTRL:
             meas_lines_T = [ x[inx] for x in T_lines ]
             meas_reflect_S = [ x[inx] for x in S_short ]
             
-            # MultiCal
             X, K, gamma = MultiCal.mTRL(meas_lines_T, line_lengths, meas_reflect_S, 
                                         gamma_0, reflect_est, reflect_offset)
             if inx+1 < len(f):
@@ -139,12 +137,13 @@ class mTRL:
         self.error_coef()
         
     def run_tug(self):
+        # TUG mTRL
         print('\nTUG mTRL in progress:')
         f = self.lines[0].frequency.f
     
         # measurements 
-        T_lines = [ rf.s2t(x.s) for x in self.lines]
-        S_short = [ x.s for x in self.reflect]
+        T_lines = [ rf.s2t(x.s) for x in self.lines ]
+        S_short = [ x.s for x in self.reflect ]
         
         line_lengths = self.line_lengths
         reflect_est  = self.reflect_est
@@ -163,10 +162,8 @@ class mTRL:
             meas_lines_T = [ x[inx] for x in T_lines ]
             meas_reflect_S = [ x[inx] for x in S_short ]
             
-            # TUG mTRL
             X, K, ereff_0, gamma, abs_lambda = TUGmTRL.mTRL(meas_lines_T, line_lengths, 
-                                              meas_reflect_S, ereff_0, reflect_est, 
-                                              reflect_offset, ff)
+                                              meas_reflect_S, ereff_0, reflect_est, reflect_offset, ff)
             
             X_full.append(X)
             K_full.append(K)
@@ -180,21 +177,45 @@ class mTRL:
         self.abs_lambda = np.array(abs_lambda_full)
         self.error_coef()
         
-    def apply_cal(self, NW):
-        # apply calibration to a 2-port network
-        X = self.X
-        K = self.K
-                
+    def apply_cal(self, NW, left=True):
+        # apply calibration to a 1-port or 2-port network.
+        # NW:   the network to be calibrated (1- or 2-port).
+        # left: boolean: define which port to use when 1-port network is given
+        # if left is True, left port is used; otherwise right port is used.
+        
+        nports = np.sqrt(len(NW.port_tuples)).astype('int') # number of ports
+        # if 1-port, convert to 2-port (later convert back to 1-port)
+        if nports < 2:
+            NW = rf.two_port_reflect(NW)
+        
         if self.switch_term is not None:
             NW = correct_sw(NW, self.switch_term[0], self.switch_term[1])
         
-        freq  = NW.frequency
-        T     = rf.s2t(NW.s)
-        T_cal = np.array([(1/k*np.linalg.pinv(x)@t.T.flatten()).reshape((2,2)).T for x,k,t in zip(X, K, T)])
+        # apply cal
+        S_cal = []
+        for x,k,s in zip(self.X, self.K, NW.s):
+            xinv = np.linalg.pinv(x)
+            M_ = np.array([-s[0,0]*s[1,1]+s[0,1]*s[1,0], -s[1,1], s[0,0], 1])
+            T_ = xinv@M_
+            s21_cal = k*s[1,0]/T_[-1]
+            T_ = T_/T_[-1]
+            S_cal.append([[T_[2], (T_[0]-T_[2]*T_[1])/s21_cal],[s21_cal, -T_[1]]])
         
-        return rf.Network(frequency=freq, s=rf.t2s(T_cal))
+        S_cal = np.array(S_cal)
+        freq  = NW.frequency
+        
+        # revert to 1-port device if the input was a 1-port device
+        if nports < 2:
+            if left: # left port
+                S_cal = S_cal[:,0,0]
+            else:  # right port
+                S_cal = S_cal[:,1,1]
+        
+        return rf.Network(frequency=freq, s=S_cal)
     
     def error_coef(self):
+        # return the 3 error terms of each port
+        
         X = self.X
         self.coefs = {}
         # forward errors
@@ -212,15 +233,16 @@ class mTRL:
         # shift calibration plane by distance d
         # negative: shift toward port
         # positive: shift away from port
-        # E.g., if your Thru has a length of L, 
+        # e.g., if your Thru has a length of L, 
         # then d=-L/2 to shift the plane backward 
         
         X_new = []
         K_new = []
         for x,k,g in zip(self.X, self.K, self.gamma):
-            X_new.append( x@np.diag([np.exp(-g*d*4), np.exp(-g*d*2), 
-                                     np.exp(-g*d*2), 1]) )
-            K_new.append( k*np.exp(g*d*2) )
+            z = np.exp(-g*d)
+            KX_new = k*x@np.diag([z**2, 1, 1, 1/z**2])
+            X_new.append(KX_new/KX_new[-1,-1])
+            K_new.append(KX_new[-1,-1])
             
         self.X = np.array(X_new)
         self.K = np.array(K_new)
@@ -229,7 +251,6 @@ class mTRL:
         # re-normalize reference calibration impedance
         # by default, the ref impedance is the characteristic 
         # impedance of the line standards.
-        
         # Z_new: new ref. impedance (can be array if frequency dependent)
         # Z0: old ref. impedance (can be array if frequency dependent)
         
@@ -242,9 +263,9 @@ class mTRL:
         X_new = []
         K_new = []
         for x,k,g in zip(self.X, self.K, G):
-            xx = x@np.kron([[1, -g],[-g, 1]],[[1, g],[g, 1]])
-            X_new.append( xx/xx[-1,-1] )
-            K_new.append( k*xx[-1,-1]/(1-g**2) )
+            KX_new = k*x@np.kron([[1, -g],[-g, 1]],[[1, g],[g, 1]])/(1-g**2)
+            X_new.append(KX_new/KX_new[-1,-1])
+            K_new.append(KX_new[-1,-1])
 
         self.X = np.array(X_new)
         self.K = np.array(K_new)

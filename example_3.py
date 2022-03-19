@@ -33,7 +33,7 @@ def plot_2x2(NW, f_units='ghz', title='mTRL'):
 if __name__ == '__main__':
     
     # define frequency range
-    freq = rf.F(0.1, 300, 3000, unit='GHz')
+    freq = rf.F(0.1, 300, 1500, unit='GHz')
     
     # 1.0 mm coaxial media for calibration error boxes
     coax1mm = Coaxial(freq, z0=50, Dint=0.44e-3, Dout=1.0e-3, sigma=1e8)
@@ -54,7 +54,7 @@ if __name__ == '__main__':
     reflect_offset = [0]
     
     # embedded DUT
-    dut = cpw.line(3500e-6, 'm', embed=True, z0=100)
+    dut = cpw.line(3500e-6, 'm')
     dut_meas = A**dut**B
     
     # calibration object

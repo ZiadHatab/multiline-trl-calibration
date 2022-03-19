@@ -62,12 +62,13 @@ if __name__ == '__main__':
     cal.run_multical()
     L5_cal_nist = cal.apply_cal(L5)
     plot_2x2(L5_cal_nist, title='MultiCal mTRL')
-    
+    gamma_mul = cal.gamma
     # using TUG mTRL
     cal.run_tug()
     L5_cal_tug = cal.apply_cal(L5)
     plot_2x2(L5_cal_tug, title='TUG mTRL')
-
+    gamma_tug = cal.gamma
+    
     plt.show()
     
 # EOF

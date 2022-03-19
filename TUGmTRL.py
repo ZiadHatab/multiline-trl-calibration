@@ -33,9 +33,8 @@ In summery, we can compare our approach and MultiCal as follow:
                 can only operate reliably under impact of low disturbances.
                 (MultiCal suffers especially from phase error).
 
-[1] Ziad Hatab, Michael Gadringer, Wolfgang Boesch, "Improving The Reliability 
-of The Multiline TRL Calibration Algorithm," 98th ARFTG Conference, Jan. 2022
-(accepted for presentation)
+[1] Ziad Hatab, Michael Gadringer, Wolfgang Boesch, "Improving the Reliability 
+of the Multiline TRL Calibration Algorithm," 98th ARFTG Conference, Jan. 2022
 
 [2] D. C. DeGroot, J. A. Jargon and R. B. Marks, "Multiline TRL revealed," 
 60th ARFTG Conference Digest, Fall 2002., 
@@ -73,7 +72,7 @@ def findereff(x, *argv):
     model = E + E.T
     error = meas - model
     return (error*error.conj()).real.sum() # np.linalg.norm(error, ord='fro')**2
-
+    #return np.linalg.norm(error, ord='nuc')
 
 def mTRL(meas_lines_T, line_lengths, meas_reflect_S, ereff_est, reflect_est, reflect_offset, f, override_gamma=-1):
     # 
@@ -109,7 +108,7 @@ def mTRL(meas_lines_T, line_lengths, meas_reflect_S, ereff_est, reflect_est, ref
                        args=(Dinv@M.T@P@Q@M, line_lengths, f))
         ereff = xx.x[0] + 1j*xx.x[1]
         gamma = 2*np.pi*f/c0*np.sqrt(-ereff)
-        gamma = gamma.real + 1j*abs(gamma.imag)
+        gamma = abs(gamma.real) + 1j*abs(gamma.imag)
         
     # lines model
     L = np.array([[np.exp(-gamma*l),0,0,np.exp(gamma*l)] for l in line_lengths]).T
@@ -219,7 +218,17 @@ def mTRL(meas_lines_T, line_lengths, meas_reflect_S, ereff_est, reflect_est, ref
     
     # build the calibration matrix (de-normalize)
     X  = X_@np.diag([a11b11, b11, a11, 1])
-
+    
+    ## comment this block if you want gamma from the optimization solution
+    # Compute a better gamma and ereff from the longest line standard
+    inxmax = np.argmax(line_lengths)
+    l = line_lengths[inxmax]
+    _,_,_,z = np.linalg.pinv(X)@M[:,inxmax]/K
+    n = np.round( (-np.log(z)+gamma*l).imag/2/np.pi ) # phase unwrap factor
+    gamma = (np.log(z) + 1j*2*np.pi*n)/l
+    ereff = -(c0/2/np.pi/f*gamma)**2
+    
+    
     return X, K, ereff, gamma, abs_lambda
 
 # EOF
