@@ -78,7 +78,7 @@ cal_dut = cal.apply_cal(dut)
 
 The way you specify *d* (i.e., the applied offset) is as shown in the image below
 
-![shift_cal_plane.png](illustrations/shift_cal_plane.png)
+<img src="./illustrations/shift_cal_plane.png" width="480" height="">
 
 If your Thru standard (i.e., the first line) has a non-zero length, and you want the cal plane to be on the edges of the Thru line, then you negatively shift by half of its length:
 
