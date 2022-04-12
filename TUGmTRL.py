@@ -221,7 +221,7 @@ def mTRL(meas_lines_T, line_lengths, meas_reflect_S, ereff_est, reflect_est, ref
     
     ## comment this block if you want gamma from the optimization solution
     # Compute a better gamma and ereff from the longest line standard
-    inxmax = np.argmax(line_lengths)
+    inxmax = np.argmax(abs(line_lengths))
     l = line_lengths[inxmax]
     _,_,_,z = np.linalg.pinv(X)@M[:,inxmax]/K
     n = np.round( (-np.log(z)+gamma*l).imag/2/np.pi ) # phase unwrap factor
