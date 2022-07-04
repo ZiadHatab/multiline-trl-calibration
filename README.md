@@ -62,8 +62,11 @@ cal.run_tug()      # run TUGmTRL calibration
 dut = rf.Network('measured_dut.s2p')
 cal_dut = cal.apply_cal(dut) # apply cal to a dut
 
-# the estimated propagation constant of the line standards
+# estimated propagation constant
 line_gamma = cal.gamma
+
+# effective dielectric constant
+line_ereff = cal.ereff
 ```
 
 ## Shifting calibration plane
