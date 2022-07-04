@@ -2,7 +2,7 @@
 
 Implementation of multiline TRL calibration. Two algorithms are included here:
 
-1. An “improved” implementation based on a work of mine [1]. You can also download my PowerPoint slides I presented in ARFTG 98 from this link: https://graz.pure.elsevier.com/en/activities/improving-the-reliability-of-the-multiline-trl-calibration-algori 
+1. An “improved” implementation based on a work of mine [1]. You can also download my PowerPoint slides I presented at ARFTG 98 from this link: https://graz.pure.elsevier.com/en/activities/improving-the-reliability-of-the-multiline-trl-calibration-algori 
 2. The classical MultiCal implementation from NIST [2,3].
 
 ## Difference between implementations
