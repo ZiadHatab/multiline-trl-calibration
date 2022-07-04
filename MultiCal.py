@@ -54,21 +54,21 @@ import numpy as np
 c0 = 299792458   # speed of light in vacuum (m/s)
 
 def S2T(S):
+    # convert S- to T-parameters at a single frequency point
     T = S.copy()
     T[0,0] = -(S[0,0]*S[1,1]-S[0,1]*S[1,0])
     T[0,1] = S[0,0]
     T[1,0] = -S[1,1]
     T[1,1] = 1
-    
     return T/S[1,0]
 
 def T2S(T):
+    # convert T- to S-parameters at a single frequency point
     S = T.copy()
     S[0,0] = T[0,1]
     S[0,1] = T[0,0]*T[1,1]-T[0,1]*T[1,0]
     S[1,0] = 1
     S[1,1] = -T[1,0]
-    
     return S/T[1,1]
 
 def deleteDiag(A):
@@ -225,38 +225,39 @@ def compute_B_CA(Mc, Mlines,  cline, lines, g_est, direction='forward'):
     
     return np.array(CAs), np.array(Bs)  # vectors B and C/A
 
-def mTRL(line_meas_T, line_lengths, meas_reflect_S, gamma_est, reflect_est, reflect_offset, override_gamma=-1):
+def mTRL(Slines, lengths, Sreflect, gamma_est, reflect_est, reflect_offset, override_gamma=-1):
     # 
-    # line_meas_T :  3D array of 2D T-paramters of line measurements (first is set to Thru)
-    # line_lengths:  1D array containing line lengths in same order of measurements
-    # meas_reflect_S: 3D array of 2D S-parameters of the measured reflects
-    # gamma_est:  Scalar of estimated gamma
-    # reflect_est: 1D array of reference reflection coefficients (e.g., short=-1, open=1)
+    # Slines        : 3D array of 2D S-paramters of line measurements (first is set to Thru)
+    # lengths       : 1D array containing line lengths in same order of measurements
+    # Sreflect      : 3D array of 2D S-parameters of the measured reflects
+    # gamma_est     : Scalar of estimated gamma
+    # reflect_est   : 1D array of reference reflection coefficients (e.g., short=-1, open=1)
     # reflect_offset: 1D array of offset lengths of the reflect standards (reference to Thru)
     # 
     
     #  make sure all inputs have proper shape
-    line_meas_T    = np.atleast_3d(line_meas_T).reshape((-1,2,2))
-    line_lengths   = np.atleast_1d(line_lengths)
-    meas_reflect_S = np.atleast_3d(meas_reflect_S).reshape((-1,2,2))
+    Slines         = np.atleast_3d(Slines).reshape((-1,2,2))
+    lengths        = np.atleast_1d(lengths)
+    Sreflect       = np.atleast_3d(Sreflect).reshape((-1,2,2))
     reflect_est    = np.atleast_1d(reflect_est)
     reflect_offset = np.atleast_1d(reflect_offset)
-     
-    line_lengths = line_lengths - line_lengths[0]  # setting the first line Thru
-    meas_Thru_S = T2S(line_meas_T[0])       # S-paramters of the Thru standard
-    thru_T = line_meas_T[0]
-    N = len(line_lengths)
+    
+    lengths = lengths - lengths[0]  # setting the first line Thru
+    
+    Mi     = np.array([S2T(x) for x in Slines]) # convert to T-parameters    
+    thru_T = Mi[0]
+    N = len(lengths)
     gamma = abs(gamma_est.real) + 1j*abs(gamma_est.imag)
     
-    cline_inx = commonLine(gamma, line_lengths)
+    cline_inx = commonLine(gamma, lengths)
     
     # extract the common line out from the list
-    line_length_com = line_lengths[cline_inx]
-    line_meas_com   = line_meas_T[cline_inx]
+    line_length_com = lengths[cline_inx]
+    line_meas_com   = Mi[cline_inx]
     
     # delete the common line from the list
-    line_meas_T  = np.delete(line_meas_T, cline_inx, axis=0)
-    line_lengths = np.delete(line_lengths, cline_inx, axis=0)
+    line_meas_T  = np.delete(Mi, cline_inx, axis=0)
+    line_lengths = np.delete(lengths, cline_inx, axis=0)
     
     # estimate gamma
     if override_gamma != -1:
@@ -282,6 +283,7 @@ def mTRL(line_meas_T, line_lengths, meas_reflect_S, gamma_est, reflect_est, refl
     '''
     # The original method MultiCal uses to compute A1A2 and R1R2... not recommended!
     # solve for A1A2 and R1R2 from Thru measurements
+    meas_Thru_S = Slines[0]  # S-paramters of the Thru standard
     S11,S12,S21,S22 = meas_Thru_S.flatten()
     A1A2 = -(B1*B2-B1*S22-B2*S11+(S11*S22-S21*S12))/(1-CA1*S11-CA2*S22+CA1*CA2*(S11*S22-S21*S12))
     R1R2 = 1/S21/(CA1*CA2*A1A2 + 1)
@@ -291,7 +293,7 @@ def mTRL(line_meas_T, line_lengths, meas_reflect_S, gamma_est, reflect_est, refl
     Below is a mathematical rewriting of the error-box model using 
     Kronecker product formulation. This has no influence on MultiCal procedures, 
     this is just for my convenience (see the NOTE at the end of this file!). 
-    You can write the problem in terms of the conventional 2 error-boxes 
+    You can also write the problem in terms of the conventional 2 error-boxes 
     matrices, if you wish...
     '''
     # normalized calibration matrix
@@ -307,7 +309,7 @@ def mTRL(line_meas_T, line_lengths, meas_reflect_S, gamma_est, reflect_est, refl
     # solve for A1/A2, A1 and A2
     A1 = []
     A2 = []
-    for reflect_S, reflect_ref, offset in zip(meas_reflect_S,reflect_est,reflect_offset):
+    for reflect_S, reflect_ref, offset in zip(Sreflect, reflect_est, reflect_offset):
         G1 = reflect_S[0,0]
         G2 = reflect_S[1,1]
         A1_A2 = (G1 - B1)/(1 - G1*CA1)*(1 + G2*CA2)/(G2 + B2)

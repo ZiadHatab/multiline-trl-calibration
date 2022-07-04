@@ -6,25 +6,24 @@ import numpy as np
 
 c0 = 299792458   # speed of light in vacuum (m/s)
 
-def correct_sw(NW, gamma_f, gamma_r):
-    # correct for switch-terms
-    # gamma_f forward (source by port-1)
-    # gamma_r reverse (source by port-2)
-    
-    G21 = gamma_f.s.squeeze()
-    G12 = gamma_r.s.squeeze()
-    
-    freq  = NW.frequency
-    SS = []
-    for S,g21,g12 in zip(NW.s,G21,G12):
-        S11 = (S[0,0]-S[0,1]*S[1,0]*g21)/(1-S[0,1]*S[1,0]*g21*g12)
-        S12 = (S[0,1]-S[0,0]*S[0,1]*g12)/(1-S[0,1]*S[1,0]*g21*g12)
-        S21 = (S[1,0]-S[1,1]*S[1,0]*g21)/(1-S[0,1]*S[1,0]*g21*g12)
-        S22 = (S[1,1]-S[0,1]*S[1,0]*g12)/(1-S[0,1]*S[1,0]*g21*g12)
-        SS.append([[S11,S12],[S21,S22]])
-    SS = np.array(SS)
-    return rf.Network(frequency=freq, s=SS)
+def correct_switch_term(S, G21, G12):
+    # correct switch terms of measured S-parameters at a single frequency point
+    # G21: forward (sourced by port-1)
+    # G12: reverse (sourced by port-2)
+    S_new = S.copy()
+    S_new[0,0] = (S[0,0]-S[0,1]*S[1,0]*G21)/(1-S[0,1]*S[1,0]*G21*G12)
+    S_new[0,1] = (S[0,1]-S[0,0]*S[0,1]*G12)/(1-S[0,1]*S[1,0]*G21*G12)
+    S_new[1,0] = (S[1,0]-S[1,1]*S[1,0]*G21)/(1-S[0,1]*S[1,0]*G21*G12)
+    S_new[1,1] = (S[1,1]-S[0,1]*S[1,0]*G12)/(1-S[0,1]*S[1,0]*G21*G12)
+    return S_new
 
+def sqrt_unwrapped(z):
+    '''
+    Take the square root of a complex number with unwrapped phase.
+    '''
+    return np.sqrt(abs(z))*np.exp(0.5*1j*np.unwrap(np.angle(z)))
+
+    
 class mTRL:
     """
     Multiline TRL calibration.
@@ -81,100 +80,109 @@ class mTRL:
                 2. network for reverse switch term.
         """
         
-        self.lines = lines
-        self.line_lengths = line_lengths
-        self.reflect = reflect
-        self.reflect_est = reflect_est
-        self.reflect_offset = reflect_offset
+        self.f  = lines[0].frequency.f
+        self.Slines = np.array([x.s for x in lines])
+        self.lengths = np.array(line_lengths)
+        self.Sreflect = np.array([x.s for x in (reflect if isinstance(reflect, list) else [reflect]) ])
+        self.reflect_est = np.atleast_1d(reflect_est)
+        self.reflect_offset = np.atleast_1d(reflect_offset)
         self.ereff_est = ereff_est
-        self.switch_term = switch_term
         
-        # correct for switch terms
-        if self.switch_term is not None:
-            self.lines = [correct_sw(NT, switch_term[0], switch_term[1]) for NT in self.lines]
-            self.reflect = [correct_sw(NT, switch_term[0], switch_term[1]) for NT in self.reflect]
-                
+        if switch_term is not None:
+            self.switch_term = np.array([x.s.squeeze() for x in switch_term])
+        else:
+            self.switch_term = np.array([self.f*0 for x in range(2)])
+        
     def run_multical(self):
         # MultiCal
         print('\nMultiCal mTRL in progress:')
-        f = self.lines[0].frequency.f
-    
-        # measurements 
-        T_lines = [ rf.s2t(x.s) for x in self.lines ]
-        S_short = [ x.s for x in self.reflect ]
         
-        line_lengths = self.line_lengths
+        # initial arrays to fill
+        gammas  = []
+        Xs      = []
+        ks      = []
+        
+        lengths = self.lengths
         reflect_est  = self.reflect_est
         reflect_offset = self.reflect_offset
         
-        # initial arrays to fill
-        gamma_full = []
-        X_full     = []
-        K_full     = []
-        
         # initial estimate
-        ereff_0  = self.ereff_est
-        gamma_0  = 2*np.pi*f[0]/c0*np.sqrt(-ereff_0)
-        gamma_0  = abs(gamma_0.real) + 1j*abs(gamma_0.imag)
+        ereff0  = self.ereff_est
+        gamma0  = 2*np.pi*self.f[0]/c0*np.sqrt(-ereff0)
+        
         # perform the calibration
-        for inx, ff in enumerate(f):
-            meas_lines_T = [ x[inx] for x in T_lines ]
-            meas_reflect_S = [ x[inx] for x in S_short ]
+        for inx, f in enumerate(self.f):
+            Slines = self.Slines[:,inx,:,:]
+            Sreflect = self.Sreflect[:,inx,:,:]
+            sw = self.switch_term[:,inx]
             
-            X, K, gamma = MultiCal.mTRL(meas_lines_T, line_lengths, meas_reflect_S, 
-                                        gamma_0, reflect_est, reflect_offset)
-            if inx+1 < len(f):
-                gamma_0 = gamma.real + 1j*gamma.imag*f[inx+1]/ff
+            # correct switch term
+            Slines = [correct_switch_term(x,sw[0],sw[1]) for x in Slines] if np.any(sw) else Slines
+            Sreflect = [correct_switch_term(x,sw[0],sw[1]) for x in Sreflect] if np.any(sw) else Sreflect # this is actually not needed!
+            
+            X, K, gamma = MultiCal.mTRL(Slines, lengths, Sreflect, 
+                                        gamma0, reflect_est, reflect_offset)
+            if inx+1 < len(self.f):
+                gamma0 = gamma.real + 1j*gamma.imag*self.f[inx+1]/f
                 
-            X_full.append(X)
-            K_full.append(K)
-            gamma_full.append(gamma)
-            print(f'Frequency: {(ff*1e-9).round(4)} GHz done!', end='\r', flush=True)
+            Xs.append(X)
+            ks.append(K)
+            gammas.append(gamma)
+            print(f'Frequency: {(f*1e-9).round(4)} GHz done!', end='\r', flush=True)
             
-        self.X = np.array(X_full)
-        self.K = np.array(K_full)
-        self.gamma = np.array(gamma_full)
+        self.X = np.array(Xs)
+        self.K = np.array(ks)
+        self.gamma = np.array(gammas)
+        self.ereff = -(c0/2/np.pi/self.f*self.gamma)**2
         self.error_coef()
         
     def run_tug(self):
         # TUG mTRL
         print('\nTUG mTRL in progress:')
-        f = self.lines[0].frequency.f
-    
-        # measurements 
-        T_lines = [ rf.s2t(x.s) for x in self.lines ]
-        S_short = [ x.s for x in self.reflect ]
-        
-        line_lengths = self.line_lengths
-        reflect_est  = self.reflect_est
-        reflect_offset = self.reflect_offset
         
         # initial arrays to fill
-        gamma_full = []
-        X_full     = []
-        K_full     = []
-        abs_lambda_full = []
+        gammas  = []
+        Xs      = []
+        ks      = []
+        lambds  = []
+        
+        lengths = self.lengths
         
         # initial estimate
-        ereff_0  = self.ereff_est
+        ereff0  = self.ereff_est
+        gamma0  = 2*np.pi*self.f[0]/c0*np.sqrt(-ereff0)
+        reflect_est0 = np.array([ x*np.exp(-2*gamma0*y) for x,y in zip(self.reflect_est, self.reflect_offset) ])
+        
         # perform the calibration
-        for inx, ff in enumerate(f):
-            meas_lines_T = [ x[inx] for x in T_lines ]
-            meas_reflect_S = [ x[inx] for x in S_short ]
+        for inx, f in enumerate(self.f):
+            Slines = self.Slines[:,inx,:,:]
+            Sreflect = self.Sreflect[:,inx,:,:]
+            sw = self.switch_term[:,inx]
             
-            X, K, ereff_0, gamma, abs_lambda = TUGmTRL.mTRL(meas_lines_T, line_lengths, 
-                                              meas_reflect_S, ereff_0, reflect_est, reflect_offset, ff)
+            # correct switch term
+            Slines = [correct_switch_term(x,sw[0],sw[1]) for x in Slines] if np.any(sw) else Slines
+            Sreflect = [correct_switch_term(x,sw[0],sw[1]) for x in Sreflect] if np.any(sw) else Sreflect # this is actually not needed!
             
-            X_full.append(X)
-            K_full.append(K)
-            gamma_full.append(gamma)
-            abs_lambda_full.append(abs_lambda)
-            print(f'Frequency: {(ff*1e-9).round(4)} GHz done!', end='\r', flush=True)
+            # the reflect standard is recursivly updated after the first point
+            if inx < 1:
+                X, K, ereff0, gamma, reflect_est0, abs_lambda = TUGmTRL.mTRL(Slines, lengths, Sreflect, ereff0, reflect_est0, f)
+                reflect_est0 = np.array([ x*np.exp(-2*gamma*y) for x,y in zip(self.reflect_est, self.reflect_offset) ])
             
-        self.X = np.array(X_full)
-        self.K = np.array(K_full)
-        self.gamma = np.array(gamma_full)
-        self.abs_lambda = np.array(abs_lambda_full)
+            X, K, ereff0, gamma, reflect_est0, abs_lambda = TUGmTRL.mTRL(Slines, lengths, 
+                                                                         Sreflect, ereff0, 
+                                                                         reflect_est0, f)
+            
+            Xs.append(X)
+            ks.append(K)
+            gammas.append(gamma)
+            lambds.append(abs_lambda)
+            print(f'Frequency: {(f*1e-9).round(4)} GHz done!', end='\r', flush=True)
+            
+        self.X = np.array(Xs)
+        self.K = np.array(ks)
+        self.gamma = np.array(gammas)
+        self.ereff = -(c0/2/np.pi/self.f*self.gamma)**2
+        self.abs_lambda = np.array(lambds)
         self.error_coef()
         
     def apply_cal(self, NW, left=True):
@@ -188,19 +196,17 @@ class mTRL:
         if nports < 2:
             NW = rf.two_port_reflect(NW)
         
-        if self.switch_term is not None:
-            NW = correct_sw(NW, self.switch_term[0], self.switch_term[1])
-        
         # apply cal
         S_cal = []
-        for x,k,s in zip(self.X, self.K, NW.s):
+        for x,k,s,sw in zip(self.X, self.K, NW.s, self.switch_term.T):
+            s    = correct_switch_term(s, sw[0], sw[1]) if np.any(sw) else s
             xinv = np.linalg.pinv(x)
             M_ = np.array([-s[0,0]*s[1,1]+s[0,1]*s[1,0], -s[1,1], s[0,0], 1])
             T_ = xinv@M_
             s21_cal = k*s[1,0]/T_[-1]
             T_ = T_/T_[-1]
             S_cal.append([[T_[2], (T_[0]-T_[2]*T_[1])/s21_cal],[s21_cal, -T_[1]]])
-        
+            
         S_cal = np.array(S_cal)
         freq  = NW.frequency
         
@@ -211,10 +217,23 @@ class mTRL:
             else:  # right port
                 S_cal = S_cal[:,1,1]
         
-        return rf.Network(frequency=freq, s=S_cal)
+        return rf.Network(frequency=freq, s=S_cal.squeeze())
     
     def error_coef(self):
         # return the 3 error terms of each port
+        #
+        # R. B. Marks, "Formulations of the Basic Vector Network Analyzer Error Model including Switch-Terms," 
+        # 50th ARFTG Conference Digest, 1997, pp. 115-126.
+        #
+        # left port:
+        # ERF: forward reflection tracking
+        # EDF: forward directivity
+        # ESF: forward source match
+        # 
+        # right port:
+        # ERR: reverse reflection tracking
+        # EDR: reverse directivity
+        # ESR: reverse source match
         
         X = self.X
         self.coefs = {}
@@ -228,7 +247,31 @@ class mTRL:
         self.coefs['EDR'] = -X[:,1,3]
         self.coefs['ESR'] =  X[:,3,1]
         
+    def receprical_ntwk(self):
+        # left and right error-boxes, assuming they are reciprocal
+        freq = rf.Frequency.from_f(self.f)
         
+        # left error-box
+        S11 = self.coefs['EDF']
+        S22 = self.coefs['ESF']
+        S21 = sqrt_unwrapped(self.coefs['ERF'])
+        S12 = S21
+        S = np.array([ [[s11,s12],[s21,s22]] for s11,s12,s21,s22 
+                                in zip(S11,S12,S21,S22) ])
+        left_ntwk = rf.Network(s=S, frequency=freq, name='Left error-box')
+        
+        # right error-box
+        S11 = self.coefs['EDR']
+        S22 = self.coefs['ESR']
+        S21 = sqrt_unwrapped(self.coefs['ERR'])
+        S12 = S21
+        S = np.array([ [[s11,s12],[s21,s22]] for s11,s12,s21,s22 
+                                in zip(S11,S12,S21,S22) ])
+        right_ntwk = rf.Network(s=S, frequency=freq, name='Right error-box')
+        right_ntwk.flip()
+        
+        return left_ntwk, right_ntwk
+    
     def shift_plane(self, d=0):
         # shift calibration plane by distance d
         # negative: shift toward port

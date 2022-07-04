@@ -16,6 +16,8 @@ import matplotlib.pyplot as plt   # for plotting
 # my script (MultiCal.py and TUGmTRL must also be in same folder)
 from mTRL import mTRL
 
+c0 = 299792458   # speed of light in vacuum (m/s)
+
 def plot_2x2(NW, f_units='ghz', title='mTRL'):
     fig, axs = plt.subplots(2,2)
     NW.frequency.unit = f_units
@@ -63,11 +65,30 @@ if __name__ == '__main__':
     L5_cal_nist = cal.apply_cal(L5)
     plot_2x2(L5_cal_nist, title='MultiCal mTRL')
     gamma_mul = cal.gamma
+    ereff_mul = cal.ereff
+    
     # using TUG mTRL
     cal.run_tug()
     L5_cal_tug = cal.apply_cal(L5)
     plot_2x2(L5_cal_tug, title='TUG mTRL')
     gamma_tug = cal.gamma
+    ereff_tug = cal.ereff
+    
+    f = L1.frequency.f
+    
+    plt.figure()
+    plt.plot(f*1e-9, gamma_mul.real, lw=2, label='NIST re(gamma)')
+    plt.plot(f*1e-9, gamma_tug.real, lw=2, label='TUG re(gamma)')
+    plt.legend()
+    plt.xlabel('Frequency (GHz)')
+    plt.ylabel('Alpha')
+    
+    plt.figure()
+    plt.plot(f*1e-9, ereff_mul.real, lw=2, label='NIST re(ereff)')
+    plt.plot(f*1e-9, ereff_tug.real, lw=2, label='TUG re(ereff)')
+    plt.legend()
+    plt.xlabel('Frequency (GHz)')
+    plt.ylabel('Effective Dk')
     
     plt.show()
     

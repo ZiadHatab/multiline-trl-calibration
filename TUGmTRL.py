@@ -60,8 +60,26 @@ c0 = 299792458
 Q = np.array([[0,0,0,1], [0,-1,0,0], [0,0,-1,0], [1,0,0,0]])
 P = np.array([[1,0,0,0], [0, 0,1,0], [0,1, 0,0], [0,0,0,1]])
 
+def S2T(S):
+    # convert S- to T-parameters at a single frequency point
+    T = S.copy()
+    T[0,0] = -(S[0,0]*S[1,1]-S[0,1]*S[1,0])
+    T[0,1] = S[0,0]
+    T[1,0] = -S[1,1]
+    T[1,1] = 1
+    return T/S[1,0]
+
+def T2S(T):
+    # convert T- to S-parameters at a single frequency point
+    S = T.copy()
+    S[0,0] = T[0,1]
+    S[0,1] = T[0,0]*T[1,1]-T[0,1]*T[1,0]
+    S[1,0] = 1
+    S[1,1] = -T[1,0]
+    return S/T[1,1]
+
 def findereff(x, *argv):
-    # objective function to estimate ereff
+    # objective function to estimate ereff (details in [2])
     meas = argv[0]
     line_lengths = argv[1]
     w = 2*np.pi*argv[2]
@@ -74,58 +92,77 @@ def findereff(x, *argv):
     return (error*error.conj()).real.sum() # np.linalg.norm(error, ord='fro')**2
     #return np.linalg.norm(error, ord='nuc')
 
-def mTRL(meas_lines_T, line_lengths, meas_reflect_S, ereff_est, reflect_est, reflect_offset, f, override_gamma=-1):
+def WLS(x,y,w=1, metas=False):
+    # Weighted least-squares for a single parameter estimation
+    # determine gamma after the calibration coefficients are solved
+    x = x*(1+0j) # force x to be complex type 
+    # return (x.conj().transpose().dot(w).dot(y))/(x.conj().transpose().dot(w).dot(x))
+    return np.dot(x.conj().transpose().dot(w), y)/np.dot(x.conj().transpose().dot(w), x)
+
+def Vgl(N):
+    # inverse covariance matrix for propagation constant computation
+    return np.eye(N-1, dtype=complex) - (1/N)*np.ones(shape=(N-1, N-1), dtype=complex)
+
+def compute_gamma(X, M, lengths, gamma_est, metas=False):
+    # determine gamma after the calibration coefficients are solved
+    EX = np.linalg.inv(X)@M
+    gamma_l = np.log(EX[0,:]/EX[-1,:])
+    gamma_l = gamma_l[lengths != 0]
+    l = -2*lengths[lengths != 0]
+    
+    n = np.round((gamma_l - gamma_est*l).imag/np.pi/2)
+    gamma_l = gamma_l - 1j*2*np.pi*n # unwrapped
+    
+    return WLS(l, gamma_l, Vgl(len(l)+1))
+
+
+def mTRL(Slines, lengths, Sreflect, ereff_est, reflect_est, f, override_gamma=-1):
     # 
-    # meas_lines_T  : 3D array of 2D T-paramters of line measurements (first is set to Thru)
-    # line_lengths  : 1D array containing line lengths in same order of measurements
-    # meas_reflect_S: 3D array of 2D S-parameters of the measured reflects
-    # ereff_est     : Scalar of estimated ereff
-    # reflect_est   : 1D array of reference reflection coefficients (e.g., short=-1, open=1)
-    # reflect_offset: 1D array of offset lengths of the reflect standards (reference to Thru)
-    # f             : Scalar, single frequency point (Hz)
+    # Slines      : 3D array of 2D S-paramters of line measurements (first is set to Thru)
+    # lengths     : 1D array containing line lengths in same order of measurements
+    # Sreflect    : 3D array of 2D S-parameters of the measured reflects
+    # ereff_est   : Scalar of estimated ereff
+    # reflect_est : 1D array of reference reflection coefficients (e.g., short=-1, open=1)
+    # f           : Scalar, single frequency point (Hz)
     
     #  make sure all inputs have proper shape
-    meas_lines_T   = np.atleast_3d(meas_lines_T).reshape((-1,2,2))
-    line_lengths   = np.atleast_1d(line_lengths)
-    meas_reflect_S = np.atleast_3d(meas_reflect_S).reshape((-1,2,2))
+    Slines         = np.atleast_3d(Slines).reshape((-1,2,2))
+    lengths        = np.atleast_1d(lengths)
+    Sreflect       = np.atleast_3d(Sreflect).reshape((-1,2,2))
     reflect_est    = np.atleast_1d(reflect_est)
-    reflect_offset = np.atleast_1d(reflect_offset)
     
-    line_lengths = np.array(line_lengths) - line_lengths[0]  # set first to Thru
+    lengths = lengths - lengths[0]  # setting the first line Thru
     
     # measurements
-    M = np.array([x.T.flatten() for x in meas_lines_T]).T
-    Dinv = np.diag([1/np.linalg.det(x) for x in meas_lines_T])
+    Mi   = np.array([S2T(x) for x in Slines]) # convert to T-parameters
+    M    = np.array([x.T.flatten() for x in Mi]).T
+    Dinv = np.diag([1/np.linalg.det(x) for x in Mi])
     
     # estimate gamma
     if override_gamma != -1:
         gamma = override_gamma
-        ereff = -(c0/2/np.pi/f*gamma)**2
     else:
         #options={'rhobeg': 1.0, 'maxiter': 1000, 'disp': False, 'catol': 1e-8}
         xx = so.minimize(findereff, [ereff_est.real, ereff_est.imag], 
                          method='COBYLA', #options=options, tol=1e-8,
-                       args=(Dinv@M.T@P@Q@M, line_lengths, f))
+                       args=(Dinv@M.T@P@Q@M, lengths, f))
         ereff = xx.x[0] + 1j*xx.x[1]
         gamma = 2*np.pi*f/c0*np.sqrt(-ereff)
         gamma = abs(gamma.real) + 1j*abs(gamma.imag)
         
     # lines model
-    L = np.array([[np.exp(-gamma*l),0,0,np.exp(gamma*l)] for l in line_lengths]).T
+    L = np.array([[np.exp(-gamma*l),0,0,np.exp(gamma*l)] for l in lengths]).T
     
     # weighting matrix
-    exps = np.exp(gamma*line_lengths)
+    exps = np.exp(gamma*lengths)
     W = (np.outer(exps,1/exps) - np.outer(1/exps,exps)).conj()
     
     H = L@W@L.T@P@Q          # model (weighted)
     F = M@W@Dinv@M.T@P@Q     # measurements (weighted)
     
-    abs_lambda = max(abs(np.linalg.eigvals(F)))  # abs(lambda) for debugging!
-    
     # nullspace basis for x2_ and x3_
-    u, s, vh = np.linalg.svd(F, full_matrices=True)
-    F = (u[:,:-2]*s[:-2])@vh[:-2,:]   # Low-rank approximation (Eckart–Young)
-    _, _, vh = np.linalg.svd(F, full_matrices=True)
+    _, s, vh = np.linalg.svd(F, full_matrices=True)
+    abs_lambda = max(s)  # abs(lambda) for debugging!
     v1 = vh[-1,:].T.conj()
     v2 = vh[-2,:].T.conj()
     v11,v12,v13,v14 = v1
@@ -163,15 +200,11 @@ def mTRL(meas_lines_T, line_lengths, meas_reflect_S, ereff_est, reflect_est, ref
     
     # estimates for x1/a11b11 and x4 from F-+lambda
     J = F-H[0,0]*np.eye(4)   # F+lambda
-    u, s, vh = np.linalg.svd(J, full_matrices=True)
-    J = (u[:,:-1]*s[:-1])@vh[:-1,:]   # Low-rank approximation (Eckart–Young)
     _, _, vh = np.linalg.svd(J, full_matrices=True)
     v = vh[-1,:].T.conj()
     x1__est = v/v[0]   # x1_ = x1/a11b11
     
     J = F-H[-1,-1]*np.eye(4)  # F-lambda
-    u, s, vh = np.linalg.svd(J, full_matrices=True)
-    J = (u[:,:-1]*s[:-1])@vh[:-1,:]  # Low-rank approximation (Eckart–Young)
     _, _, vh = np.linalg.svd(J, full_matrices=True)
     v = vh[-1,:].T.conj()
     x4_est = v/v[-1]   # x4
@@ -199,14 +232,13 @@ def mTRL(meas_lines_T, line_lengths, meas_reflect_S, ereff_est, reflect_est, ref
     # solve for a11/b11, a11 and b11 (use redundant reflect measurement, if available)
     a11 = []
     b11 = []
-    for reflect_S, reflect_ref, offset in zip(meas_reflect_S,reflect_est,reflect_offset):
+    for reflect_S, ref_est in zip(Sreflect, reflect_est):
         Ga = reflect_S[0,0]
         Gb = reflect_S[1,1]
         a11_b11 = (Ga - x2_[0])/(1 - Ga*x3_[3])*(1 + Gb*x2_[3])/(Gb + x3_[0])
         a1 = np.sqrt(a11_b11*a11b11)
         
         # choose correct answer for a11 and b11
-        ref_est = reflect_ref*np.exp(-2*gamma*offset)
         G0 = (Ga - x2_[0])/(1 - Ga*x3_[3])/a1
         if abs(G0 - ref_est) > abs(-G0 - ref_est):
             a1 = -a1
@@ -216,19 +248,18 @@ def mTRL(meas_lines_T, line_lengths, meas_reflect_S, ereff_est, reflect_est, ref
     a11 = np.array(a11).mean()
     b11 = np.array(b11).mean()
     
+    # new value of estimated reflect
+    reflect_est = (Sreflect[:,0,0] - x2_[0])/(1 - Sreflect[:,0,0]*x3_[3])/a11  
+    
     # build the calibration matrix (de-normalize)
     X  = X_@np.diag([a11b11, b11, a11, 1])
     
     ## comment this block if you want gamma from the optimization solution
-    # Compute a better gamma and ereff from the longest line standard
-    inxmax = np.argmax(abs(line_lengths))
-    l = line_lengths[inxmax]
-    _,_,_,z = np.linalg.pinv(X)@M[:,inxmax]/K
-    n = np.round( (-np.log(z)+gamma*l).imag/2/np.pi ) # phase unwrap factor
-    gamma = (np.log(z) + 1j*2*np.pi*n)/l
+    # Compute a better gamma from calibrated lines
+    gamma = compute_gamma(X, M, lengths, gamma)
+    
     ereff = -(c0/2/np.pi/f*gamma)**2
     
-    
-    return X, K, ereff, gamma, abs_lambda
+    return X, K, ereff, gamma, reflect_est, abs_lambda
 
 # EOF
