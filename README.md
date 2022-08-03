@@ -134,9 +134,9 @@ If you found yourself using my mTRL implementation, please consider citing [1]. 
 
 ## References
 
-- [1] Z. Hatab, M. Gadringer, W. Bösch, "Improving the Reliability of the Multiline TRL Calibration Algorithm," presented at 98th ARFTG Conference, Jan. 2022
+- [1] Z. Hatab, M. Gadringer and W. Bösch, "Improving The Reliability of The Multiline TRL Calibration Algorithm," 2022 98th ARFTG Microwave Measurement Conference (ARFTG), 2022, pp. 1-5, doi: 10.1109/ARFTG52954.2022.9844064.
     
-    (I will include an url when the paper is listed on [https://ieeexplore.ieee.org/](https://ieeexplore.ieee.org/))
+    [Improving the Reliability of the Multiline TRL Calibration Algorithm](https://ieeexplore.ieee.org/document/9844064)
     
 - [2] D. C. DeGroot, J. A. Jargon and R. B. Marks, "Multiline TRL revealed," 60th ARFTG Conference Digest, Fall 2002., pp. 131-155
     
