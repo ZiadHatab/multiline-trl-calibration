@@ -92,7 +92,6 @@ def commonLine(gamma, line_lengths):
 
 def BLUE(x,y,Vinv):
     # perform the Gauss-Markov linear estimation
-    
     #return (x.transpose().dot(Vinv).dot(y))/(x.transpose().dot(Vinv).dot(x))
     return (x.conj()*(Vinv@y)).sum()/(x.conj()*(Vinv@x)).sum()
 
@@ -141,7 +140,6 @@ def VB(gamma, cline, lines):
 def computeGL(Mc, Mlines, cline, lines, g_est):
     # Perform root choice procedure as described in [1]
     # Compute the vectors G and L used to estimate gamma (see [1], Eq. (24))
-    
     # The work at https://github.com/simonary/MultilineTRL was very helpful.
     
     gdl = []
@@ -283,7 +281,7 @@ def mTRL(Slines, lengths, Sreflect, gamma_est, reflect_est, reflect_offset, over
     '''
     # The original method MultiCal uses to compute A1A2 and R1R2... not recommended!
     # solve for A1A2 and R1R2 from Thru measurements
-    meas_Thru_S = Slines[0]  # S-paramters of the Thru standard
+    meas_Thru_S = Slines[0]  # S-parameters of the Thru standard
     S11,S12,S21,S22 = meas_Thru_S.flatten()
     A1A2 = -(B1*B2-B1*S22-B2*S11+(S11*S22-S21*S12))/(1-CA1*S11-CA2*S22+CA1*CA2*(S11*S22-S21*S12))
     R1R2 = 1/S21/(CA1*CA2*A1A2 + 1)
