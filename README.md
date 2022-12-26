@@ -2,32 +2,34 @@
 
 Implementation of multiline TRL calibration. Two algorithms are included here:
 
-1. An “improved” implementation based on a work of mine [1]. You can also download my PowerPoint slides I presented at ARFTG 98 from this link: https://graz.pure.elsevier.com/en/activities/improving-the-reliability-of-the-multiline-trl-calibration-algori 
+1. An “improved” implementation based on my work [1]. You can also download my PowerPoint slides I presented at ARFTG 98: https://graz.pure.elsevier.com/en/activities/improving-the-reliability-of-the-multiline-trl-calibration-algori 
 2. The classical MultiCal implementation from NIST [2,3].
+
+If you are interested in propagating uncertainties through the calibration, see my other repository: https://github.com/ZiadHatab/uncertainty-multiline-trl-calibration
 
 ## Difference between implementations
 
 NIST MultiCal [2,3]:
 
-1. Assumes that error in the measurements can be modeled linearly in the solution of the calibration coefficients (eigenvectors).
-2. Given that linearity assumption holds, then one can solve multiple eigenvalue problems and combine their result using the Gauss-Markov BLUE estimator (weighted sum) to obtain a final solution.
-3. The weighing is done on the solutions (eigenvectors) and not the measurements.
+1. Assumes that error in the measurements can be modeled linearly in the solution of the calibration coefficients (i.e., eigenvectors).
+2. Given that linearity assumption holds, then one can solve multiple eigenvalue problems and combine their result using the Gauss-Markov BLUE estimator (weighted sum) to obtain a combined solution.
+3. The weighing is done on the solutions (eigenvectors) and not on the measurements themselves.
 
 TUG mTRL [1]:
 
 1. Makes no assumption on the type of error propagated through the calibration coefficients.
 2. A weighting matrix is derived to combine the measurements optimally (minimize eigenvectors sensitivity).
-3. The weighting is done on the measurements to create a single eigenvalue problem to solve.
+3. The weighting is applied directly to the measurements, which results in a single combined eigenvalue problem to solve.
 
 W**hy the method I’m presenting (TUG mTRL [1]) is better?**
 
-The simple answer is that it does not enforces any assumption on the type of disturbance on your measurements. It just give the best solution it can deliver given what you provided it.
+The simple answer is that it does not enforces any assumption on the type of disturbance on your measurements. It just gives the best solution it can deliver given what you provided it.
 
 ## Code requirements
 
 First, these three files need to be in the same folder `mTRL.py`, `MultiCal.py`, `TUGmTRL.py` , and you will load the file `mTRL.py` in your main script (also, in same folder).
 
-Secondly, you need to have `numpy`, `scipy`, `matplotlib`, and `scikit-rf` installed in your python environment.
+Secondly, you need to have `numpy`, `scipy`, `matplotlib`, and `scikit-rf` installed in your python environment (**update**: I will remove the scipy dependency in a future release, as the calibration problem can be solved without it. See https://github.com/ZiadHatab/uncertainty-multiline-trl-calibration).
 
 ```powershell
 python -m pip install -U numpy scipy matplotlib scikit-rf
@@ -104,6 +106,40 @@ cal_dut = cal.apply_cal(dut)  # now the dut is calibrated with the new impedance
 
 In case you don’t know the characterise impedance of your lines, there are methods out there that allows you to estimate the characteristic impedance from the propagation constant, e.g., [4] where you need to know the capacitance of the line and assume lossless dielectric medium. In case you must consider the losses of the dielectric, you can check [5], where EM simulation and the measurement of the propagation constant were combined to estimate the losses.
 
+## Extracting the 12-error terms
+
+I originally only included a function to return the 6-error terms (3 from each port). After the [feedback](https://github.com/scikit-rf/scikit-rf/discussions/805#discussioncomment-4227698) from @Zwelckovich, I decided to update my `error_coef(self)` to return all 12 error terms. It should be noted that these error terms will be updated automatically if you shift reference plane or perform impedance renormalization.
+```python
+# forward direction
+cal.coefs['EDF'] # forward directivity
+cal.coefs['ESF'] # forward source match
+cal.coefs['ERF'] # forward reflection tracking
+cal.coefs['ELF'] # forward load match
+cal.coefs['ETF'] # forward transmission tracking
+cal.coefs['EXF'] # forward crosstalk (set to zero!)
+cal.coefs['GF']  # forward switch term
+
+# reverse direction
+cal.coefs['EDR'] # reverse directivity
+cal.coefs['ESR'] # reverse source match
+cal.coefs['ERR'] # reverse reflection tracking
+cal.coefs['ELR'] # reverse load match
+cal.coefs['ETR'] # reverse transmission tracking
+cal.coefs['EXR'] # reverse crosstalk
+cal.coefs['GR']  # reverse switch term
+```
+
+## Extracting reciprocal error-boxes
+
+In general, we cannot split the error-boxes uniquely, as we only solve for 7-error terms (excluding the switch terms). To split the error-boxes uniquely, we need an additional condition. In some cases, as in 2nd-tier calibration (de-embedding), the error-boxes could be reciprocal (S21=S12). In such cases the error-boxes can be split. I implemented a function to return skrf networks of the left and right error-boxes, under assumption of reciprocity.
+
+```python
+left_ntwk, right_ntwk = cal.receprical_ntwk()
+```
+
+**NOTE**: reciprocity of the error-boxes depends on what they represent. If they consist of passive components (e.g., connector), then reciprocity holds true. However, if you are dealing with diodes, ferromagnet materials, or active devices (amplifiers), then reciprocity wouldn't hold. 
+
+
 ## Code examples
 
 ### example 1:
@@ -124,9 +160,7 @@ This example demonstrate how to do a statistical analysis on mTRL calibration vi
 
 ## To-Do
 
-I’m working on staring a GitHub Pages, where I will post the mathematical details of the algorithm... 
-
-Feedback and discussions are always welcomed!!!
+I’m working on staring a GitHub Pages, where I will post the mathematical details of the algorithm... Feedback and discussions are always welcomed!!!
 
 ## Crediting
 
