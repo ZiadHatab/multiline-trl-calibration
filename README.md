@@ -125,7 +125,7 @@ cal.coefs['ESR'] # reverse source match
 cal.coefs['ERR'] # reverse reflection tracking
 cal.coefs['ELR'] # reverse load match
 cal.coefs['ETR'] # reverse transmission tracking
-cal.coefs['EXR'] # reverse crosstalk
+cal.coefs['EXR'] # reverse crosstalk (set to zero!)
 cal.coefs['GR']  # reverse switch term
 ```
 
