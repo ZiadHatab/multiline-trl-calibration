@@ -6,15 +6,17 @@ import numpy as np
 
 c0 = 299792458   # speed of light in vacuum (m/s)
 
-def correct_switch_term(S, G21, G12):
-    # correct switch terms of measured S-parameters at a single frequency point
-    # G21: forward (sourced by port-1)
-    # G12: reverse (sourced by port-2)
+def correct_switch_term(S, GF, GR):
+    '''
+    correct switch terms of measured S-parameters at a single frequency point
+    GF: forward (sourced by port-1)
+    GR: reverse (sourced by port-2)
+    '''
     S_new = S.copy()
-    S_new[0,0] = (S[0,0]-S[0,1]*S[1,0]*G21)/(1-S[0,1]*S[1,0]*G21*G12)
-    S_new[0,1] = (S[0,1]-S[0,0]*S[0,1]*G12)/(1-S[0,1]*S[1,0]*G21*G12)
-    S_new[1,0] = (S[1,0]-S[1,1]*S[1,0]*G21)/(1-S[0,1]*S[1,0]*G21*G12)
-    S_new[1,1] = (S[1,1]-S[0,1]*S[1,0]*G12)/(1-S[0,1]*S[1,0]*G21*G12)
+    S_new[0,0] = (S[0,0]-S[0,1]*S[1,0]*GF)/(1-S[0,1]*S[1,0]*GF*GR)
+    S_new[0,1] = (S[0,1]-S[0,0]*S[0,1]*GR)/(1-S[0,1]*S[1,0]*GF*GR)
+    S_new[1,0] = (S[1,0]-S[1,1]*S[1,0]*GF)/(1-S[0,1]*S[1,0]*GF*GR)
+    S_new[1,1] = (S[1,1]-S[0,1]*S[1,0]*GR)/(1-S[0,1]*S[1,0]*GF*GR)
     return S_new
 
 def sqrt_unwrapped(z):
@@ -186,11 +188,11 @@ class mTRL:
         self.error_coef()
         
     def apply_cal(self, NW, left=True):
-        # apply calibration to a 1-port or 2-port network.
-        # NW:   the network to be calibrated (1- or 2-port).
-        # left: boolean: define which port to use when 1-port network is given
-        # if left is True, left port is used; otherwise right port is used.
-        
+        '''
+        Apply calibration to a 1-port or 2-port network.
+        NW:   the network to be calibrated (1- or 2-port).
+        left: boolean: define which port to use when 1-port network is given. If left is True, left port is used; otherwise right port is used.
+        '''
         nports = np.sqrt(len(NW.port_tuples)).astype('int') # number of ports
         # if 1-port, convert to 2-port (later convert back to 1-port)
         if nports < 2:
@@ -220,35 +222,93 @@ class mTRL:
         return rf.Network(frequency=freq, s=S_cal.squeeze())
     
     def error_coef(self):
-        # return the 3 error terms of each port
-        #
-        # R. B. Marks, "Formulations of the Basic Vector Network Analyzer Error Model including Switch-Terms," 
-        # 50th ARFTG Conference Digest, 1997, pp. 115-126.
-        #
-        # left port:
-        # ERF: forward reflection tracking
-        # EDF: forward directivity
-        # ESF: forward source match
-        # 
-        # right port:
-        # ERR: reverse reflection tracking
-        # EDR: reverse directivity
-        # ESR: reverse source match
+        '''
+        Return the conventional 12 error terms from the error-box model. The conversion equations are adapted from [4]. Also [5] is a good reference for the equations.
+        Originally, I only included the 3 error terms from each port. However, thanks to @Zwelckovich feedback, I decided to update this function to return all 12 error terms. 
+        I also included the switch terms for sake of completeness, as well as the consistency test between 8-terms and 12-terms models, as discussed in [4].  
+
+        [4] R. B. Marks, "Formulations of the Basic Vector Network Analyzer Error Model including Switch-Terms," 50th ARFTG Conference Digest, 1997, pp. 115-126.
+        [5] Dunsmore, J.P.. Handbook of Microwave Component Measurements: with Advanced VNA Techniques.. Wiley, 2020.
+
+        Below are the error term abbreviations in full. In Marks's paper [4] he just used the abbreviations as is, which can be 
+        difficult to understand if you are not familiar with VNA calibration terminology. For those interested in VNAs in general, 
+        I recommend the book by Dunsmore [5], where he lists the terms in full.
         
-        X = self.X
+        Left port error terms (forward direction):
+        EDF: forward directivity
+        ESF: forward source match
+        ERF: forward reflection tracking
+        ELF: forward load match
+        ETF: forward transmission tracking
+        EXF: forward crosstalk
+        
+        Right port error terms (reverse direction):
+        EDR: reverse directivity
+        ESR: reverse source match
+        ERR: reverse reflection tracking
+        ELR: reverse load match
+        ETR: reverse transmission tracking
+        EXR: reverse crosstalk
+        
+        Switch terms:
+        GF: forward switch term
+        GR: reverse switch term
+
+        NOTE: the K in my notation is equivalent to Marks' notation [4] by this relationship: K = (beta/alpha)*(1/ERR).
+        '''
+
         self.coefs = {}
-        # forward errors
-        self.coefs['ERF'] =  X[:,2,2] - X[:,2,3]*X[:,3,2]
-        self.coefs['EDF'] =  X[:,2,3]
-        self.coefs['ESF'] = -X[:,3,2]
+        # forward 3 error terms. These equations are directly mapped from eq. (3) in [4]
+        EDF =  self.X[:,2,3]
+        ESF = -self.X[:,3,2]
+        ERF =  self.X[:,2,2] - self.X[:,2,3]*self.X[:,3,2]
         
-        # reverse errors
-        self.coefs['ERR'] =  X[:,1,1] - X[:,3,1]*X[:,1,3]
-        self.coefs['EDR'] = -X[:,1,3]
-        self.coefs['ESR'] =  X[:,3,1]
+        # reverse 3 error terms. These equations are directly mapped from eq. (3) in [4]
+        EDR = -self.X[:,1,3]
+        ESR =  self.X[:,3,1]
+        ERR =  self.X[:,1,1] - self.X[:,3,1]*self.X[:,1,3]
         
+        # switch terms
+        GF = self.switch_term[0]
+        GR = self.switch_term[1]
+
+        # remaining forward terms
+        ELF = ESR + ERR*GF/(1-EDR*GF)  # eq. (36) in [4].
+        ETF = 1/self.K/(1-EDR*GF)      # eq. (38) in [4], after substituting eq. (36) in eq. (38) and simplifying.
+        EXF = 0*ESR  # setting it to zero, since we assumed no cross-talk in the calibration. (update if known!)
+
+        # remaining reverse terms
+        ELR = ESF + ERF*GR/(1-EDF*GR)    # eq. (37) in [4].
+        ETR = self.K*ERR*ERF/(1-EDF*GR)  # eq. (39) in [4], after substituting eq. (37) in eq. (39) and simplifying.
+        EXR = 0*ESR  # setting it to zero, since we assumed no cross-talk in the calibration. (update if known!)
+
+        # forward direction
+        self.coefs['EDF'] = EDF
+        self.coefs['ESF'] = ESF
+        self.coefs['ERF'] = ERF
+        self.coefs['ELF'] = ELF
+        self.coefs['ETF'] = ETF
+        self.coefs['EXF'] = EXF
+        self.coefs['GF']  = GF
+
+        # reverse direction
+        self.coefs['EDR'] = EDR
+        self.coefs['ESR'] = ESR
+        self.coefs['ERR'] = ERR
+        self.coefs['ELR'] = ELR
+        self.coefs['ETR'] = ETR
+        self.coefs['EXR'] = EXR
+        self.coefs['GR']  = GR
+
+        # consistency check between 8-terms and 12-terms model. Based on eq. (35) in [4].
+        # This should equal zero, otherwise there is inconsistency between the models (can arise from switch term measurements).
+        self.coefs['check'] = abs( ETF*ETR - (ERR + EDR*(ELF-ESR))*(ERF + EDF*(ELR-ESF)) )
+
+
     def receprical_ntwk(self):
-        # left and right error-boxes, assuming they are reciprocal
+        '''
+        Return left and right error-boxes as skrf networks, assuming they are reciprocal.
+        '''
         freq = rf.Frequency.from_f(self.f)
         
         # left error-box
@@ -273,12 +333,11 @@ class mTRL:
         return left_ntwk, right_ntwk
     
     def shift_plane(self, d=0):
-        # shift calibration plane by distance d
-        # negative: shift toward port
-        # positive: shift away from port
-        # e.g., if your Thru has a length of L, 
-        # then d=-L/2 to shift the plane backward 
-        
+        '''
+        Shift calibration plane by a distance d.
+        Negative d value shifts toward port, while positive d value shift away from port.
+        For example, if your Thru has a length of L, then d=-L/2 shifts the plane backward to the edges of the Thru.
+        '''
         X_new = []
         K_new = []
         for x,k,g in zip(self.X, self.K, self.gamma):
@@ -291,13 +350,15 @@ class mTRL:
         self.K = np.array(K_new)
     
     def renorm_impedance(self, Z_new, Z0=50):
-        # re-normalize reference calibration impedance
-        # by default, the ref impedance is the characteristic 
-        # impedance of the line standards.
-        # Z_new: new ref. impedance (can be array if frequency dependent)
-        # Z0: old ref. impedance (can be array if frequency dependent)
-        
-        # ensure correct array dimensions (if not, you get an error!)
+        '''
+        Re-normalize reference calibration impedance. by default, the ref impedance is the characteristic 
+        impedance of the line standards (even if you don'y know it!).
+        Z_new: new ref. impedance (can be array if frequency dependent)
+        Z0: old ref. impedance (can be array if frequency dependent)
+
+        The old ref. impedance Z0 needs to be somehow estimated by you (e.g., EM simulation).
+        '''
+        # ensure correct array dimensions if scalar is given (frequency independent).
         N = len(self.K)
         Z_new = Z_new*np.ones(N)
         Z0    = Z0*np.ones(N)
