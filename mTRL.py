@@ -304,6 +304,7 @@ class mTRL:
         # This should equal zero, otherwise there is inconsistency between the models (can arise from switch term measurements).
         self.coefs['check'] = abs( ETF*ETR - (ERR + EDR*(ELF-ESR))*(ERF + EDF*(ELR-ESF)) )
 
+        return self.coefs 
 
     def receprical_ntwk(self):
         '''
