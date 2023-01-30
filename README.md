@@ -31,9 +31,9 @@ The TUG mTRL method [1] has several advantages over the NIST MultiCal approach:
 - A single 4x4 eigenvalue problem to solve, regardless of the number of line measurements taken.
 - The method is designed to maximize the eigenvalue separation and minimize the sensitivity of the eigenvectors, leading to improved solution accuracy of the calibration coefficients.
 
-## Code Requirements
+## Code requirements
 
-The three files [`mTRL.py`](https://github.com/<your-username>/<your-repository>/blob/master/mTRL.py), [`MultiCal.py`](https://github.com/ZiadHatab/multiline-trl-calibration/blob/master/MultiCal.py), and [`TUGmTRL.py`](https://github.com/ZiadHatab/multiline-trl-calibration/blob/master/TUGmTRL.py) need to be in the same folder and `mTRL.py` should be loaded in your main script.
+The three files [`mTRL.py`](https://github.com/ZiadHatab/multiline-trl-calibration/blob/main/mTRL.py), [`MultiCal.py`](https://github.com/ZiadHatab/multiline-trl-calibration/blob/main/MultiCal.py), and [`TUGmTRL.py`](https://github.com/ZiadHatab/multiline-trl-calibration/blob/main/TUGmTRL.py) need to be in the same folder and `mTRL.py` should be loaded in your main script.
 
 You need to have `numpy`, `matplotlib`, and `scikit-rf` installed in your Python environment. To install these packages, run the following command:
 
@@ -95,7 +95,7 @@ If your Thru standard (the first line) has a non-zero length, and you want the c
 cal.shift_plane(-thru_length/2)
 ```
 
-## Renormalizing Impedance
+## Renormalizing impedance
 
 By default, the reference impedance after a mTRL calibration is set to the characteristic impedance of the line standards. However, if the used transmission lines have an impedance that's different from what you want (e.g. 50 ohm), you can renormalize the calibration coefficients to any desired impedance by specifying the characteristic impedance of your lines:
 
@@ -107,7 +107,7 @@ cal.renorm_impedance(new_impedance, old_impedance)
 cal_dut = cal.apply_cal(dut) # The DUT is now calibrated with the new impedance.
 ```
 
-## Extracting the 12-error terms
+## Extracting the 12 error terms
 
 I originally only included a function to return the 6-error terms (3 from each port). After the [feedback](https://github.com/scikit-rf/scikit-rf/discussions/805#discussioncomment-4227698) from @Zwelckovich, I decided to update `error_coef(self)` function to return all 12 error terms. It should be noted that these error terms will be updated automatically if you shift reference plane or perform impedance renormalization.
 ```python
@@ -130,7 +130,7 @@ cal.coefs['EXR'] # reverse crosstalk (set to zero!)
 cal.coefs['GR']  # reverse switch term
 ```
 
-## Splitting Reciprocal Error-boxes
+## Splitting reciprocal error-boxes
 
 If you have reciprocal error-boxes (i.e., S21=S12), you can split them into left and right error-boxes. Use the following function in mTRL to achieve this:
 
