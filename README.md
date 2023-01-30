@@ -23,7 +23,7 @@ TUG mTRL [1]:
 - A weighting matrix is derived to optimally combine the measurements (minimizing the eigenvectors sensitivity).
 - The weights are applied directly to the measurements, resulting in a single 4x4 combined eigenvalue problem to solve.
 
-## Advantages of TUG mTRL [1]
+## Advantages of TUG mTRL
 
 The TUG mTRL method [1] has several advantages over the NIST MultiCal approach:
 
