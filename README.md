@@ -1,38 +1,44 @@
 # Multiline TRL Calibration
 
-Implementation of multiline TRL calibration. Two algorithms are included here:
+This repository implements two algorithms for multiline TRL calibration:
 
-1. An “improved” implementation based on my work [1]. You can also download my PowerPoint slides I presented at ARFTG 98: https://graz.pure.elsevier.com/en/activities/improving-the-reliability-of-the-multiline-trl-calibration-algori 
+1. An "improved" implementation based on my work [1]. The related PowerPoint slides can be found at https://graz.pure.elsevier.com/en/activities/improving-the-reliability-of-the-multiline-trl-calibration-algorithm
 2. The classical MultiCal implementation from NIST [2,3].
 
-If you are interested in propagating uncertainties through the calibration, see my other repository: https://github.com/ZiadHatab/uncertainty-multiline-trl-calibration
+For information on uncertainty propagation in the calibration process, see my other repository at https://github.com/ZiadHatab/uncertainty-multiline-trl-calibration
 
-## Difference between implementations
+Also, the optimization procedure to compute the propagation constant that was discussed in [1] has been removed and not used anymore in the derivation of the weighting matrix. The weighting matrix is now derived directly though low-rank Takagi decomposition. This was discussed in [4].
+
+## Comparison of Implementations
 
 NIST MultiCal [2,3]:
 
-1. Assumes that error in the measurements can be modeled linearly in the solution of the calibration coefficients (i.e., eigenvectors).
-2. Given that linearity assumption holds, then one can solve multiple eigenvalue problems and combine their result using the Gauss-Markov BLUE estimator (weighted sum) to obtain a combined solution.
-3. The weighing is done on the solutions (eigenvectors) and not on the measurements themselves.
+- Assumes linear error in the measurement and that it can be modeled in the solution of the calibration coefficients (i.e., eigenvectors).
+- If the linearity assumption holds, multiple eigenvalue problems can be solved and combined using the Gauss-Markov BLUE estimator (weighted sum) to obtain a combined solution.
+- The weights are applied to the solutions (eigenvectors) and not the measurements themselves. Bare in mind the fact that The derived covariance matrix is based under certain simplifications (see [3])
 
 TUG mTRL [1]:
 
-1. Makes no assumption on the type of error propagated through the calibration coefficients.
-2. A weighting matrix is derived to combine the measurements optimally (minimize eigenvectors sensitivity).
-3. The weighting is applied directly to the measurements, which results in a single combined eigenvalue problem to solve.
+- Makes no assumptions about the type of error found in the  measurement.
+- A weighting matrix is derived to optimally combine the measurements (minimizing the eigenvectors sensitivity).
+- The weights are applied directly to the measurements, resulting in a single 4x4 combined eigenvalue problem to solve.
 
-W**hy the method I’m presenting (TUG mTRL [1]) is better?**
+## Advantages of TUG mTRL [1]
 
-The simple answer is that it does not enforces any assumption on the type of disturbance on your measurements. It just gives the best solution it can deliver given what you provided it.
+The TUG mTRL method [1] has several advantages over the NIST MultiCal approach:
 
-## Code requirements
+- No assumptions about the type of perturbations in the measurements are required.
+- A single 4x4 eigenvalue problem to solve, regardless of the number of line measurements taken.
+- The method is designed to maximize the eigenvalue separation and minimize the sensitivity of the eigenvectors, leading to improved solution accuracy of the calibration coefficients.
 
-First, these three files need to be in the same folder `mTRL.py`, `MultiCal.py`, `TUGmTRL.py` , and you will load the file `mTRL.py` in your main script (also, in same folder).
+## Code Requirements
 
-Secondly, you need to have `numpy`, `scipy`, `matplotlib`, and `scikit-rf` installed in your python environment (**update**: I will remove the scipy dependency in a future release, as the calibration problem can be solved without it. See https://github.com/ZiadHatab/uncertainty-multiline-trl-calibration).
+The three files [`mTRL.py`](https://github.com/<your-username>/<your-repository>/blob/master/mTRL.py), [`MultiCal.py`](https://github.com/ZiadHatab/multiline-trl-calibration/blob/master/MultiCal.py), and [`TUGmTRL.py`](https://github.com/ZiadHatab/multiline-trl-calibration/blob/master/TUGmTRL.py) need to be in the same folder and `mTRL.py` should be loaded in your main script.
+
+You need to have `numpy`, `matplotlib`, and `scikit-rf` installed in your Python environment. To install these packages, run the following command:
 
 ```powershell
-python -m pip install -U numpy scipy matplotlib scikit-rf
+python -m pip install numpy matplotlib scikit-rf -U
 ```
 
 ## How to use
@@ -40,7 +46,8 @@ python -m pip install -U numpy scipy matplotlib scikit-rf
 Below is a sample code on how to run an mTRL calibration:
 
 ```python
-from mTRL import mTRL  # (MultiCal.py and TUGmTRL.py must also be in same folder)
+# MultiCal.py and TUGmTRL.py must also be in same folder.
+from mTRL import mTRL
 import skrf as rf
 
 # Measured calibration standards
@@ -57,23 +64,20 @@ reflect_est = [-1]
 reflect_offset = [0]
 
 # define the calibration
-cal = mTRL(lines=lines, line_lengths=line_lengths, reflect=reflect, 
-               reflect_est=reflect_est, reflect_offset=reflect_offset)
+cal = mTRL(lines=lines, line_lengths=line_lengths, reflect=reflect, reflect_est=reflect_est, reflect_offset=reflect_offset)
 cal.run_tug()      # run TUGmTRL calibration
+# cal.run_multical() # run MultiCal
 
 dut = rf.Network('measured_dut.s2p')
 cal_dut = cal.apply_cal(dut) # apply cal to a dut
 
-# estimated propagation constant
-line_gamma = cal.gamma
-
-# effective dielectric constant
-line_ereff = cal.ereff
+line_gamma = cal.gamma # estimated propagation constant
+line_ereff = cal.ereff # effective dielectric constant
 ```
 
 ## Shifting calibration plane
 
-Be aware that after you finish the calibration, the mTRL sets the calibration plane in the middle of the first line you specify in the list of lines; regardless whether it is the shortest or longest. Therefore, if you want the cal plane to be somewhere else, you can shift the plane after calibration as follows
+After you complete the calibration, the mTRL sets the calibration plane in the middle of the first line you specify in the list of lines, regardless of whether it is the shortest or longest. If you want the calibration plane to be in a different location, you can shift the plane after calibration as follows:
 
 ```python
 cal.shift_plane(d)  # d is the shift in units of meters 
@@ -81,30 +85,27 @@ cal.shift_plane(d)  # d is the shift in units of meters
 cal_dut = cal.apply_cal(dut)
 ```
 
-The way you specify *d* (i.e., the applied offset) is as shown in the image below
+Here's how you specify *d* (the applied offset), as shown in the image below:
 
-<img src="./illustrations/shift_cal_plane.png" width="480" height="">
+<img src="./images/shift_cal_plane.png" width="480" height="">
 
-If your Thru standard (i.e., the first line) has a non-zero length, and you want the cal plane to be on the edges of the Thru line, then you negatively shift by half of its length:
+If your Thru standard (the first line) has a non-zero length, and you want the cal plane to be on the edges of the Thru line, you can negatively shift by half of its length:
 
 ```python
 cal.shift_plane(-thru_length/2)
 ```
 
-## Impedance renormalization
+## Renormalizing Impedance
 
-By default, the reference impedance after you finish a mTRL calibration is set to the characteristic impedance of the line standards (even if you don’t know it). In many cases, the used transmission lines could have an impedance different from what you want, e.g., 50ohm. You can renormalize the calibration coefficients to any impedance if you know the characteristic impedance of your lines:
+By default, the reference impedance after a mTRL calibration is set to the characteristic impedance of the line standards. However, if the used transmission lines have an impedance that's different from what you want (e.g. 50 ohm), you can renormalize the calibration coefficients to any desired impedance by specifying the characteristic impedance of your lines:
 
 ```python
-cal.renorm_impedance(Z_new, Z_old)
-# Z_new: the new impedance (can be array, i.e., frequency dependent).
-# Z_old: the old impedance, in most cases this is the characteristic impedance of the line standards, unless you are renormalizing 
-# after a previous renormalization (also can be array, i.e., frequency dependent).
+cal.renorm_impedance(new_impedance, old_impedance)
+# new_impedance: The desired impedance (can be an array, i.e., frequency dependent).
+# old_impedance: The old impedance, typically the characteristic impedance of the line standards, unless you've previously renormalized it (also can be an array, i.e., frequency dependent).
 
-cal_dut = cal.apply_cal(dut)  # now the dut is calibrated with the new impedance
+cal_dut = cal.apply_cal(dut) # The DUT is now calibrated with the new impedance.
 ```
-
-In case you don’t know the characterise impedance of your lines, there are methods out there that allows you to estimate the characteristic impedance from the propagation constant, e.g., [4] where you need to know the capacitance of the line and assume lossless dielectric medium. In case you must consider the losses of the dielectric, you can check [5], where EM simulation and the measurement of the propagation constant were combined to estimate the losses.
 
 ## Extracting the 12-error terms
 
@@ -129,61 +130,63 @@ cal.coefs['EXR'] # reverse crosstalk (set to zero!)
 cal.coefs['GR']  # reverse switch term
 ```
 
-## Extracting reciprocal error-boxes
+## Splitting Reciprocal Error-boxes
 
-In general, we cannot split the error-boxes uniquely, as we only solve for 7-error terms (excluding the switch terms). To split the error-boxes uniquely, we need an additional condition. In some cases, as in 2nd-tier calibration (de-embedding), the error-boxes could be reciprocal (S21=S12). In such cases the error-boxes can be split. I implemented a function to return skrf networks of the left and right error-boxes, under assumption of reciprocity.
+If you have reciprocal error-boxes (i.e., S21=S12), you can split them into left and right error-boxes. Use the following function in mTRL to achieve this:
 
 ```python
-left_ntwk, right_ntwk = cal.receprical_ntwk()
+left_ntwk, right_ntwk = cal.reciprocal_ntwk()
 ```
 
-**NOTE**: reciprocity of the error-boxes depends on what they represent. If they consist of passive components (e.g., connector), then reciprocity holds true. However, if you are dealing with diodes, ferromagnet materials, or active devices (amplifiers), then reciprocity wouldn't hold. 
-
+Keep in mind that the reciprocity of the error-boxes depends on the components they represent. If they are passive components such as connectors, reciprocity is likely to hold. However, if they consist of diodes, ferromagnetic materials, or active devices such as amplifiers, reciprocity most certainly wouldn't hold.
 
 ## Code examples
 
-### example 1:
+### example 1 — 2nd-tier calibration
 
 This example demonstrate how to do a simple 2nd tier calibration (de-embedding), where the s2p data were captured using an already calibrated VNA.
 
-### example 2:
+!['example_1_ereff_loss'](images/example_1_ereff_loss.png)
+*Effective permittivity and loss per unit length.*
+
+!['example_1_cal_dut'](images/example_1_cal_dut.png)
+*Calibrated line standard.*
+
+### example 2 — 1st-tier calibration
 
 This example demonstrate how to do a full 1st tier calibration (including switch terms). The s2p data are the raw data from the VNA.
 
-### example 3:
+!['example_2_ereff_loss'](images/example_2_ereff_loss.png)
+*Effective permittivity and loss per unit length.*
 
-This example demonstrate how to do a mTRL calibration using simulated data from skrf package. You can adjust the simulated data to test various scenarios.
+!['example_2_cal_dut'](images/example_2_cal_dut.png)
+*Calibrated line standard.*
 
-### example 4:
+### example 3 — statistical comparison
 
-This example demonstrate how to do a statistical analysis on mTRL calibration via Monte-Carlo method. For this example I used the data from example_1, where I provided options (uncomment to use) to analyze the cases of additive noise, or phase error. You can create other types of analysis.
+This example demonstrate statistical performance of different mTRL calibrations via Monte-Carlo method. Below is the error of the calibration coefficients due to iid additive noise. Feel free to do your own comparisons with different dataset and uncertainty types.
+
+![](images/example_3_std_0_1.png)  |  ![](images/example_3_std_0_2.png)
+:-------------------------:|:-------------------------:
 
 ## To-Do
 
-I’m working on staring a GitHub Pages, where I will post the mathematical details of the algorithm... Feedback and discussions are always welcomed!!!
+I’m working on staring a GitHub Pages, where I will post the mathematical details of the algorithm. For now, you can refer to [1] and [4]. Also, feedback and discussions are always welcomed. Just post them in the issue forum.
 
 ## Crediting
 
-If you found yourself using my mTRL implementation, please consider citing [1]. You could as well cite this repository, but citing the paper is sufficient.
+If you found yourself using my mTRL implementation, please consider citing [1] and [4].
 
 ## References
 
-- [1] Z. Hatab, M. Gadringer and W. Bösch, "Improving The Reliability of The Multiline TRL Calibration Algorithm," 2022 98th ARFTG Microwave Measurement Conference (ARFTG), 2022, pp. 1-5, doi: 10.1109/ARFTG52954.2022.9844064.
-    
-    [Improving the Reliability of the Multiline TRL Calibration Algorithm](https://ieeexplore.ieee.org/document/9844064)
-    
-- [2] D. C. DeGroot, J. A. Jargon and R. B. Marks, "Multiline TRL revealed," 60th ARFTG Conference Digest, Fall 2002., pp. 131-155
-    
-    [Multiline TRL revealed](https://ieeexplore.ieee.org/document/1218696)
-    
-- [3] R. B. Marks, "A multiline method of network analyzer calibration", IEEE Transactions on Microwave Theory and Techniques, vol. 39, no. 7, pp. 1205-1215, July 1991.
-    
-    [A multiline method of network analyzer calibration](https://ieeexplore.ieee.org/document/85388)
-    
-- [4] R. B. Marks and D. F. Williams, "Characteristic impedance determination using propagation constant measurement," in *IEEE Microwave and Guided Wave Letters*, vol. 1, no. 6, pp. 141-143, June 1991
-    
-    [Characteristic impedance determination using propagation constant measurement](https://ieeexplore.ieee.org/document/91092)
-    
-- [5] Z. Hatab, M. Gadringer, M. Habib and W. Bösch, "mm-Wave Complex Permittivity Extraction of LTCC Substrate Under the Influence of Surface Roughness," in *IEEE Transactions on Instrumentation and Measurement*, vol. 71, 2022
-    
-    [mm-Wave Complex Permittivity Extraction of LTCC Substrate Under the Influence of Surface Roughness](https://ieeexplore.ieee.org/document/9715070)
+* [1] Z. Hatab, M. Gadringer and W. Bösch, "Improving The Reliability of The Multiline TRL Calibration Algorithm," 2022 98th ARFTG Microwave Measurement Conference (ARFTG), 2022, pp. 1-5, doi: [10.1109/ARFTG52954.2022.9844064](http://dx.doi.org/10.1109/ARFTG52954.2022.9844064).
+
+* [2] D. C. DeGroot, J. A. Jargon and R. B. Marks, "Multiline TRL revealed," 60th ARFTG Conference Digest, Fall 2002., Washington, DC, USA, 2002, pp. 131-155, doi: [10.1109/ARFTGF.2002.1218696](http://dx.doi.org/10.1109/ARFTGF.2002.1218696).
+
+* [3] R. B. Marks, "A multiline method of network analyzer calibration," in IEEE Transactions on Microwave Theory and Techniques, vol. 39, no. 7, pp. 1205-1215, July 1991, doi: [10.1109/22.85388](http://dx.doi.org/10.1109/22.85388).
+
+* [4] Z. Hatab, M. Gadringer, and W. Bösch, "Propagation of Linear Uncertainties through Multiline Thru-Reflect-Line Calibration," e-print: [https://arxiv.org/abs/2301.09126](https://arxiv.org/abs/2301.09126)
+
+## About the license
+
+The code in this repository is licensed under the BSD-3-Clause license. Feel free to do whatever you want with the code under limitations of [BSD-3-Clause license](https://github.com/ZiadHatab/multiline-trl-calibration/blob/main/LICENSE).

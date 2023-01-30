@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 @author: Ziad Hatab (zi.hatab@gmail.com)
 
@@ -33,8 +32,6 @@ Some concerns regarding [1]:
     Am I missing something here? I ended up deriving an equation for R1R2 
     directly from the Thru measurements (which works quite good).
     
-    
-    
 [1] D. C. DeGroot, J. A. Jargon and R. B. Marks, "Multiline TRL revealed," 
 60th ARFTG Conference Digest, Fall 2002, pp. 131-155
 
@@ -46,7 +43,6 @@ vol. 39, no. 7, pp. 1205-1215, July 1991.
 This script is written to process only one frequency point. Therefore, you need 
 to call this script in your main script and iterate through all frequency points.
 ##########-END-##########
-
 """
 
 import numpy as np
@@ -92,8 +88,9 @@ def commonLine(gamma, line_lengths):
 
 def BLUE(x,y,Vinv):
     # perform the Gauss-Markov linear estimation
-    #return (x.transpose().dot(Vinv).dot(y))/(x.transpose().dot(Vinv).dot(x))
-    return (x.conj()*(Vinv@y)).sum()/(x.conj()*(Vinv@x)).sum()
+    x = x*(1+0j) # force x to be complex type 
+    # return (x.conj().transpose().dot(w).dot(y))/(x.conj().transpose().dot(w).dot(x))
+    return np.dot(x.conj().transpose().dot(Vinv), y)/np.dot(x.conj().transpose().dot(Vinv), x)
 
 def VGamma(N):
     # inverse covariance matrix for gamma
@@ -109,7 +106,7 @@ def VCA(gamma, cline, lines):
     lm, ln = np.meshgrid(lines, lines, sparse=False, indexing='ij')
     
     V = ( 1/(np.exp(-g*(lm-lc))*np.exp(-g*(ln-lc)).conj())
-         + 1/(abs(np.exp(-g*lc))**2*np.exp(-g*lm)*np.exp(-g*ln).conj()) )/( np.exp(-g*(lm-lc)) - np.exp(g*(lm-lc)) )/( np.exp(-g*(ln-lc)) - np.exp(g*(ln-lc)) ).conj()
+        + 1/(abs(np.exp(-g*lc))**2*np.exp(-g*lm)*np.exp(-g*ln).conj()) )/( np.exp(-g*(lm-lc)) - np.exp(g*(lm-lc)) )/( np.exp(-g*(ln-lc)) - np.exp(g*(ln-lc)) ).conj()
     
     # Account for the terms with kronecker-delta (see [2], Eq.(77))
     diag = (abs(np.exp(-g*dl))**2 + 1/(abs(np.exp(-g*l))*abs(np.exp(-g*lc)))**2)/abs(np.exp(-g*dl) - np.exp(g*dl))**2
@@ -134,23 +131,20 @@ def VB(gamma, cline, lines):
     diag = (1/abs(np.exp(-g*dl))**2 + (abs(np.exp(-g*l))*abs(np.exp(-g*lc)))**2)/abs(np.exp(-g*dl) - np.exp(g*dl))**2
 
     V = V + np.diag(diag)
-    
+
     return np.linalg.pinv(V)
 
 def computeGL(Mc, Mlines, cline, lines, g_est):
     # Perform root choice procedure as described in [1]
     # Compute the vectors G and L used to estimate gamma (see [1], Eq. (24))
-    # The work at https://github.com/simonary/MultilineTRL was very helpful.
+    # The work by https://github.com/simonary/MultilineTRL was very helpful.
     
     gdl = []
     dls = []
     for inx, (linej, Mj) in enumerate(zip(lines, Mlines)): # For every other line
         Mjc = Mj@np.linalg.pinv(Mc)
-        
         Eij = np.linalg.eigvals(Mjc)
-        
         dl = linej - cline
-        
         # case 1  Eij[0] = exp(-gamma*l), Eij[1] = exp(gamma*l)
         Ea1 = (Eij[0]+1/Eij[1])/2 # exp(-gamma*l)
         Eb1 = (Eij[1]+1/Eij[0])/2 # exp(gamma*l)
@@ -176,8 +170,8 @@ def computeGL(Mc, Mlines, cline, lines, g_est):
         Db2 = abs(g_b2/g_est + 1) 
 
         dls.append(dl)
-        
-        # Determin the assignment of eigenvalue
+
+        # Determine the assignment of eigenvalue
         if (Da1 + Db1) <= 0.1*(Da2 + Db2):
             gdl.append(-np.log(Ea1) + 1j*2*np.pi*Pa1)
             
@@ -196,19 +190,20 @@ def computeGL(Mc, Mlines, cline, lines, g_est):
                     gdl.append(-np.log(Ea1) + 1j*2*np.pi*Pa1)
                 else:
                     gdl.append(-np.log(Ea2) + 1j*2*np.pi*Pa2)
-            
+        
     return np.array(gdl), np.array(dls)  # vectors G and L
 
 def compute_B_CA(Mc, Mlines,  cline, lines, g_est, direction='forward'):
-    Mcinv = np.linalg.pinv(Mc)
+    Mcinv = np.linalg.inv(Mc)
     Bs  = []
     CAs = []
     for inx, Mj in enumerate(Mlines): # For every other line
         if direction == 'forward':
-            Eij, V = np.linalg.eig(Mj@Mcinv)
+            T = Mj@Mcinv
+            Eij, V = np.linalg.eig(T)
         elif direction == 'backward':
-            Eij, V = np.linalg.eig((Mcinv@Mj).T)
-        
+            T = (Mcinv@Mj).T
+            Eij, V = np.linalg.eig(T)
         dl = lines[inx] - cline
         
         mininx = np.argmin( abs(Eij-np.exp(-g_est*dl)) )
@@ -225,7 +220,7 @@ def compute_B_CA(Mc, Mlines,  cline, lines, g_est, direction='forward'):
 
 def mTRL(Slines, lengths, Sreflect, gamma_est, reflect_est, reflect_offset, override_gamma=-1):
     # 
-    # Slines        : 3D array of 2D S-paramters of line measurements (first is set to Thru)
+    # Slines        : 3D array of 2D S-parameters of line measurements (first is set to Thru)
     # lengths       : 1D array containing line lengths in same order of measurements
     # Sreflect      : 3D array of 2D S-parameters of the measured reflects
     # gamma_est     : Scalar of estimated gamma
@@ -263,9 +258,7 @@ def mTRL(Slines, lengths, Sreflect, gamma_est, reflect_est, reflect_offset, over
     else:
         G,L = computeGL(line_meas_com, line_meas_T, line_length_com, line_lengths, gamma)
         gamma = BLUE(L, G, VGamma(N))
-        # gamma = abs(gamma.real) + 1j*abs(gamma.imag)
 
-    
     # estimate B and C/A for forward direction
     CAs, Bs = compute_B_CA(line_meas_com, line_meas_T, line_length_com,
                            line_lengths, gamma, direction='forward')
@@ -300,9 +293,9 @@ def mTRL(Slines, lengths, Sreflect, gamma_est, reflect_est, reflect_offset, over
                    [CA2,     B1*CA2, 1,      B1   ], 
                    [CA1*CA2, CA2,    CA1,    1    ]])
     
-    # solve for A1A2 and K, simultaneously (this gives much better results)
-    KA1A2,_,_,K = np.linalg.pinv(X_)@thru_T.T.flatten()
-    A1A2 = KA1A2/K
+    # solve for A1A2 and k, simultaneously (this gives much better results)
+    KA1A2,_,_,k = np.linalg.pinv(X_)@thru_T.flatten('F')
+    A1A2 = KA1A2/k
     
     # solve for A1/A2, A1 and A2
     A1 = []
@@ -332,7 +325,7 @@ def mTRL(Slines, lengths, Sreflect, gamma_est, reflect_est, reflect_offset, over
     forward error-box and B is the reverse error-box (T-parameters). 
     This matrix holds the 6 error terms.
     
-    K: is the 7-th term of the error-box model
+    k: is the 7-th term of the error-box model
     
     ############-NOTE-############
     Background on Kronecker product:
@@ -342,18 +335,18 @@ def mTRL(Slines, lengths, Sreflect, gamma_est, reflect_est, reflect_offset, over
         where vec() flatten a matrix into a vector.
         
         In our case if the error-box model is given as:
-            M = K*A*T*B   
-        where K is scalar, A and B are forward and backward error-boxes, and 
+            M = k*A*T*B   
+        where k is scalar, A and B are forward and backward error-boxes, and 
         T is the DUT. Then using Kronecker product description, we have:
-            vec(M) = K*(B.T kron A)*vec(T)
+            vec(M) = k*(B.T kron A)*vec(T)
         Therefore, the calibrated DUT is solved as:
-            vec(T) = (1/K)*(B.T kron A)^(-1)*vec(M)
+            vec(T) = (1/k)*(B.T kron A)^(-1)*vec(M)
         
     https://en.wikipedia.org/wiki/Kronecker_product
     https://en.wikipedia.org/wiki/Vectorization_(mathematics)
     ############-END-############
     '''
     
-    return X, K, gamma
+    return X, k, gamma
     
     # EOF

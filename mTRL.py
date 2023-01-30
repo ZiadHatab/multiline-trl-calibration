@@ -57,7 +57,7 @@ class mTRL:
              and by default calibration is defined in its middel.
                 
         line_lengths : list of float
-            Lengths of the line. In the same order as the paramter 'lines'
+            Lengths of the line. In the same order as the parameter 'lines'
         
         reflect : list of :class:`~skrf.network.Network`
             Measured reflect standards (2-port device)
@@ -122,18 +122,18 @@ class mTRL:
             Slines = [correct_switch_term(x,sw[0],sw[1]) for x in Slines] if np.any(sw) else Slines
             Sreflect = [correct_switch_term(x,sw[0],sw[1]) for x in Sreflect] if np.any(sw) else Sreflect # this is actually not needed!
             
-            X, K, gamma = MultiCal.mTRL(Slines, lengths, Sreflect, 
+            X, k, gamma = MultiCal.mTRL(Slines, lengths, Sreflect, 
                                         gamma0, reflect_est, reflect_offset)
             if inx+1 < len(self.f):
                 gamma0 = gamma.real + 1j*gamma.imag*self.f[inx+1]/f
                 
             Xs.append(X)
-            ks.append(K)
+            ks.append(k)
             gammas.append(gamma)
             print(f'Frequency: {(f*1e-9).round(4)} GHz done!', end='\r', flush=True)
             
         self.X = np.array(Xs)
-        self.K = np.array(ks)
+        self.k = np.array(ks)
         self.gamma = np.array(gammas)
         self.ereff = -(c0/2/np.pi/self.f*self.gamma)**2
         self.error_coef()
@@ -152,9 +152,8 @@ class mTRL:
         
         # initial estimate
         ereff0  = self.ereff_est
-        gamma0  = 2*np.pi*self.f[0]/c0*np.sqrt(-ereff0)
-        reflect_est0 = np.array([ x*np.exp(-2*gamma0*y) for x,y in zip(self.reflect_est, self.reflect_offset) ])
-        
+        reflect0 = self.reflect_est
+        reflect_offset = self.reflect_offset
         # perform the calibration
         for inx, f in enumerate(self.f):
             Slines = self.Slines[:,inx,:,:]
@@ -163,29 +162,23 @@ class mTRL:
             
             # correct switch term
             Slines = [correct_switch_term(x,sw[0],sw[1]) for x in Slines] if np.any(sw) else Slines
-            Sreflect = [correct_switch_term(x,sw[0],sw[1]) for x in Sreflect] if np.any(sw) else Sreflect # this is actually not needed!
+            Sreflect = [correct_switch_term(x,sw[0],sw[1]) for x in Sreflect] if np.any(sw) else Sreflect
             
-            # the reflect standard is recursivly updated after the first point
-            if inx < 1:
-                X, K, ereff0, gamma, reflect_est0, abs_lambda = TUGmTRL.mTRL(Slines, lengths, Sreflect, ereff0, reflect_est0, f)
-                reflect_est0 = np.array([ x*np.exp(-2*gamma*y) for x,y in zip(self.reflect_est, self.reflect_offset) ])
-            
-            X, K, ereff0, gamma, reflect_est0, abs_lambda = TUGmTRL.mTRL(Slines, lengths, 
-                                                                         Sreflect, ereff0, 
-                                                                         reflect_est0, f)
+            X, k, ereff0, gamma, reflect0, lambd = TUGmTRL.mTRL(Slines, lengths, Sreflect, ereff0, 
+                                                                    reflect0, reflect_offset, f)
             
             Xs.append(X)
-            ks.append(K)
+            ks.append(k)
             gammas.append(gamma)
-            lambds.append(abs_lambda)
+            lambds.append(lambd)
             print(f'Frequency: {(f*1e-9).round(4)} GHz done!', end='\r', flush=True)
             
         self.X = np.array(Xs)
-        self.K = np.array(ks)
+        self.k = np.array(ks)
         self.gamma = np.array(gammas)
         self.ereff = -(c0/2/np.pi/self.f*self.gamma)**2
-        self.abs_lambda = np.array(lambds)
-        self.error_coef()
+        self.lambd = np.array(lambds)
+        self.error_coef()  # compute the 12 error terms
         
     def apply_cal(self, NW, left=True):
         '''
@@ -197,10 +190,9 @@ class mTRL:
         # if 1-port, convert to 2-port (later convert back to 1-port)
         if nports < 2:
             NW = rf.two_port_reflect(NW)
-        
         # apply cal
         S_cal = []
-        for x,k,s,sw in zip(self.X, self.K, NW.s, self.switch_term.T):
+        for x,k,s,sw in zip(self.X, self.k, NW.s, self.switch_term.T):
             s    = correct_switch_term(s, sw[0], sw[1]) if np.any(sw) else s
             xinv = np.linalg.pinv(x)
             M_ = np.array([-s[0,0]*s[1,1]+s[0,1]*s[1,0], -s[1,1], s[0,0], 1])
@@ -208,7 +200,6 @@ class mTRL:
             s21_cal = k*s[1,0]/T_[-1]
             T_ = T_/T_[-1]
             S_cal.append([[T_[2], (T_[0]-T_[2]*T_[1])/s21_cal],[s21_cal, -T_[1]]])
-            
         S_cal = np.array(S_cal)
         freq  = NW.frequency
         
@@ -218,21 +209,21 @@ class mTRL:
                 S_cal = S_cal[:,0,0]
             else:  # right port
                 S_cal = S_cal[:,1,1]
-        
         return rf.Network(frequency=freq, s=S_cal.squeeze())
     
     def error_coef(self):
         '''
-        Return the conventional 12 error terms from the error-box model. The conversion equations are adapted from [4]. Also [5] is a good reference for the equations.
-        Originally, I only included the 3 error terms from each port. However, thanks to @Zwelckovich feedback, I decided to update this function to return all 12 error terms. 
-        I also included the switch terms for sake of completeness, as well as the consistency test between 8-terms and 12-terms models, as discussed in [4].  
-
+        This function returns the conventional 12 error terms from the error-box model. The conversion equations used are adapted from references [4] and [5].
+        Initially, only the 3 error terms from each port were included. However, due to feedback from @Zwelckovich, the function has been updated to now return 
+        all 12 error terms. Additionally, for the sake of completeness, the switch terms have also been included. 
+        Furthermore, the function also includes a consistency test between the 8-terms and 12-terms models, as discussed in reference [4].
+        
         [4] R. B. Marks, "Formulations of the Basic Vector Network Analyzer Error Model including Switch-Terms," 50th ARFTG Conference Digest, 1997, pp. 115-126.
         [5] Dunsmore, J.P.. Handbook of Microwave Component Measurements: with Advanced VNA Techniques.. Wiley, 2020.
 
-        Below are the error term abbreviations in full. In Marks's paper [4] he just used the abbreviations as is, which can be 
-        difficult to understand if you are not familiar with VNA calibration terminology. For those interested in VNAs in general, 
-        I recommend the book by Dunsmore [5], where he lists the terms in full.
+        The following list includes the full error term abbreviations. In reference [4], Marks used the abbreviations without providing their full forms, 
+        which can be challenging to understand for those unfamiliar with VNA calibration terminology. 
+        For a comprehensive understanding of VNAs, I recommend consulting the book by Dunsmore [5], where all the terms are listed in full.
         
         Left port error terms (forward direction):
         EDF: forward directivity
@@ -254,7 +245,7 @@ class mTRL:
         GF: forward switch term
         GR: reverse switch term
 
-        NOTE: the K in my notation is equivalent to Marks' notation [4] by this relationship: K = (beta/alpha)*(1/ERR).
+        NOTE: the k in my notation is equivalent to Marks' notation [4] by this relationship: k = (beta/alpha)*(1/ERR).
         '''
 
         self.coefs = {}
@@ -274,12 +265,12 @@ class mTRL:
 
         # remaining forward terms
         ELF = ESR + ERR*GF/(1-EDR*GF)  # eq. (36) in [4].
-        ETF = 1/self.K/(1-EDR*GF)      # eq. (38) in [4], after substituting eq. (36) in eq. (38) and simplifying.
+        ETF = 1/self.k/(1-EDR*GF)      # eq. (38) in [4], after substituting eq. (36) in eq. (38) and simplifying.
         EXF = 0*ESR  # setting it to zero, since we assumed no cross-talk in the calibration. (update if known!)
 
         # remaining reverse terms
         ELR = ESF + ERF*GR/(1-EDF*GR)    # eq. (37) in [4].
-        ETR = self.K*ERR*ERF/(1-EDF*GR)  # eq. (39) in [4], after substituting eq. (37) in eq. (39) and simplifying.
+        ETR = self.k*ERR*ERF/(1-EDF*GR)  # eq. (39) in [4], after substituting eq. (37) in eq. (39) and simplifying.
         EXR = 0*ESR  # setting it to zero, since we assumed no cross-talk in the calibration. (update if known!)
 
         # forward direction
@@ -301,17 +292,17 @@ class mTRL:
         self.coefs['GR']  = GR
 
         # consistency check between 8-terms and 12-terms model. Based on eq. (35) in [4].
-        # This should equal zero, otherwise there is inconsistency between the models (can arise from switch term measurements).
+        # This should equal zero, otherwise there is inconsistency between the models (can arise from bad switch term measurements).
         self.coefs['check'] = abs( ETF*ETR - (ERR + EDR*(ELF-ESR))*(ERF + EDF*(ELR-ESF)) )
-
         return self.coefs 
 
-    def receprical_ntwk(self):
+    def reciprocal_ntwk(self):
         '''
         Return left and right error-boxes as skrf networks, assuming they are reciprocal.
         '''
-        freq = rf.Frequency.from_f(self.f)
-        
+        freq = rf.Frequency.from_f(self.f, unit='hz')
+        freq.unit = 'ghz'
+
         # left error-box
         S11 = self.coefs['EDF']
         S22 = self.coefs['ESF']
@@ -330,7 +321,6 @@ class mTRL:
                                 in zip(S11,S12,S21,S22) ])
         right_ntwk = rf.Network(s=S, frequency=freq, name='Right error-box')
         right_ntwk.flip()
-        
         return left_ntwk, right_ntwk
     
     def shift_plane(self, d=0):
@@ -341,14 +331,13 @@ class mTRL:
         '''
         X_new = []
         K_new = []
-        for x,k,g in zip(self.X, self.K, self.gamma):
+        for x,k,g in zip(self.X, self.k, self.gamma):
             z = np.exp(-g*d)
             KX_new = k*x@np.diag([z**2, 1, 1, 1/z**2])
             X_new.append(KX_new/KX_new[-1,-1])
             K_new.append(KX_new[-1,-1])
-            
         self.X = np.array(X_new)
-        self.K = np.array(K_new)
+        self.k = np.array(K_new)
     
     def renorm_impedance(self, Z_new, Z0=50):
         '''
@@ -356,22 +345,21 @@ class mTRL:
         impedance of the line standards (even if you don'y know it!).
         Z_new: new ref. impedance (can be array if frequency dependent)
         Z0: old ref. impedance (can be array if frequency dependent)
-
-        The old ref. impedance Z0 needs to be somehow estimated by you (e.g., EM simulation).
         '''
         # ensure correct array dimensions if scalar is given (frequency independent).
-        N = len(self.K)
+        N = len(self.k)
         Z_new = Z_new*np.ones(N)
         Z0    = Z0*np.ones(N)
         
         G = (Z_new-Z0)/(Z_new+Z0)
         X_new = []
         K_new = []
-        for x,k,g in zip(self.X, self.K, G):
+        for x,k,g in zip(self.X, self.k, G):
             KX_new = k*x@np.kron([[1, -g],[-g, 1]],[[1, g],[g, 1]])/(1-g**2)
             X_new.append(KX_new/KX_new[-1,-1])
             K_new.append(KX_new[-1,-1])
 
         self.X = np.array(X_new)
-        self.K = np.array(K_new)
-    
+        self.k = np.array(K_new)
+
+# EOF
