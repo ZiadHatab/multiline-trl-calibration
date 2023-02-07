@@ -106,7 +106,7 @@ if __name__ == '__main__':
     
     # Monte Carlo Analysis
     print('\n\nWith noise...')
-    M = 1000 # number of trials
+    M = 10 # number of trials
     sigma_noise = 0.2
     
     coefs_NIST = []
@@ -187,7 +187,7 @@ if __name__ == '__main__':
                 marker='^', markevery=50, markersize=10)
         ax.plot(f*1e-9, mag2db(EDF_TUG), lw=2, label='TUG mTRL', 
                 marker='v', markevery=50, markersize=10)
-        ax.plot(f*1e-9, mag2db(EDF_skrf), lw=2, label='skrf v0.24.1', 
+        ax.plot(f*1e-9, mag2db(EDF_skrf), lw=2, label='skrf', 
                 marker='>', markevery=50, markersize=10)
         ax.set_xlabel('Frequency (GHz)')
         ax.set_ylabel('Forward directivity')
@@ -199,7 +199,7 @@ if __name__ == '__main__':
                 marker='^', markevery=50, markersize=10)
         ax.plot(f*1e-9, mag2db(ESF_TUG), lw=2, label='TUG mTRL', 
                 marker='v', markevery=50, markersize=10)
-        ax.plot(f*1e-9, mag2db(ESF_skrf), lw=2, label='skrf v0.24.1', 
+        ax.plot(f*1e-9, mag2db(ESF_skrf), lw=2, label='skrf', 
                 marker='>', markevery=50, markersize=10)
         ax.set_xlabel('Frequency (GHz)')
         ax.set_ylabel('Forward source match')
@@ -211,7 +211,7 @@ if __name__ == '__main__':
                 marker='^', markevery=50, markersize=10)
         ax.plot(f*1e-9, mag2db(ERF_TUG), lw=2, label='TUG mTRL', 
                 marker='v', markevery=50, markersize=10)
-        ax.plot(f*1e-9, mag2db(ERF_skrf), lw=2, label='skrf v0.24.1', 
+        ax.plot(f*1e-9, mag2db(ERF_skrf), lw=2, label='skrf', 
                 marker='>', markevery=50, markersize=10)
         ax.set_xlabel('Frequency (GHz)')
         ax.set_ylabel('Forward reflection tracking')
@@ -223,7 +223,7 @@ if __name__ == '__main__':
                 marker='^', markevery=50, markersize=10)
         ax.plot(f*1e-9, mag2db(EDR_TUG), lw=2, label='TUG mTRL', 
                 marker='v', markevery=50, markersize=10)
-        ax.plot(f*1e-9, mag2db(EDR_skrf), lw=2, label='skrf v0.24.1', 
+        ax.plot(f*1e-9, mag2db(EDR_skrf), lw=2, label='skrf', 
                 marker='>', markevery=50, markersize=10)
         ax.set_xlabel('Frequency (GHz)')
         ax.set_ylabel('Reverse directivity')
@@ -235,7 +235,7 @@ if __name__ == '__main__':
                 marker='^', markevery=50, markersize=10)
         ax.plot(f*1e-9, mag2db(ESR_TUG), lw=2, label='TUG mTRL', 
                 marker='v', markevery=50, markersize=10)
-        ax.plot(f*1e-9, mag2db(ESR_skrf), lw=2, label='skrf v0.24.1', 
+        ax.plot(f*1e-9, mag2db(ESR_skrf), lw=2, label='skrf', 
                 marker='>', markevery=50, markersize=10)
         ax.set_xlabel('Frequency (GHz)')
         ax.set_ylabel('Reverse source match')
@@ -247,7 +247,7 @@ if __name__ == '__main__':
                 marker='^', markevery=50, markersize=10)
         ax.plot(f*1e-9, mag2db(ERR_TUG), lw=2, label='TUG mTRL', 
                 marker='v', markevery=50, markersize=10)
-        ax.plot(f*1e-9, mag2db(ERR_skrf), lw=2, label='skrf v0.24.1', 
+        ax.plot(f*1e-9, mag2db(ERR_skrf), lw=2, label='skrf', 
                 marker='>', markevery=50, markersize=10)
         ax.set_xlabel('Frequency (GHz)')
         ax.set_ylabel('Reverse reflection tracking')
