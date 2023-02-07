@@ -164,7 +164,7 @@ class mTRL:
             Slines = [correct_switch_term(x,sw[0],sw[1]) for x in Slines] if np.any(sw) else Slines
             Sreflect = [correct_switch_term(x,sw[0],sw[1]) for x in Sreflect] if np.any(sw) else Sreflect
             
-            X, k, ereff0, gamma, reflect0, lambd = TUGmTRL.mTRL(Slines, lengths, Sreflect, ereff0, 
+            X, k, ereff0, gamma, _, lambd = TUGmTRL.mTRL(Slines, lengths, Sreflect, ereff0, 
                                                                     reflect0, reflect_offset, f)
             
             Xs.append(X)
