@@ -74,7 +74,7 @@ def compute_G_with_takagi(A):
     u,s,vh = u[:,:2],s[:2],vh[:2,:]  # low-rank truncated (Eckart-Young-Mirsky theorem)
     phi = np.sqrt( s*np.diag(vh@u.conj()) )
     G = u@np.diag(phi)
-    lambd = (s[0]**2 + s[1]**2)/2    # this is the eigenvalue of the weighted eigenvalue problem (squared Frobenius norm)
+    lambd = s[0]*s[1]  # this is the eigenvalue of the weighted eigenvalue problem (squared Frobenius norm of W)
     return G, lambd
 
 def WLS(x,y,w=1):
