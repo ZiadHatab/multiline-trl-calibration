@@ -164,7 +164,7 @@ This example demonstrate how to do a full 1st tier calibration (including switch
 
 ### example 3 — statistical comparison
 
-This example demonstrate statistical performance of different mTRL calibrations via Monte-Carlo method. Below is the error of the calibration coefficients due to iid additive noise. Feel free to do your own comparisons with different dataset and uncertainty types.
+This example demonstrate statistical performance of different mTRL calibrations via Monte-Carlo method (1000 trials). Below is the error of the calibration coefficients due to iid additive noise. Feel free to do your own comparisons with different dataset and uncertainty types.
 
 ![](images/example_3_std_0_1.png)  |  ![](images/example_3_std_0_2.png)
 :-------------------------:|:-------------------------:
