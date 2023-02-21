@@ -2,10 +2,10 @@
 
 This repository implements two algorithms for multiline TRL calibration:
 
-1. An "improved" implementation based on my work [1]. The related PowerPoint slides can be found at https://graz.pure.elsevier.com/en/activities/improving-the-reliability-of-the-multiline-trl-calibration-algorithm
+1. An "improved" implementation based on my work [1]. The related PowerPoint slides can be found at <https://pure.tugraz.at/ws/portalfiles/portal/46207898/ziad_ARFTG_98_presentation.pdf>
 2. The classical MultiCal implementation from NIST [2,3].
 
-For information on uncertainty propagation in the calibration process, see my other repository at https://github.com/ZiadHatab/uncertainty-multiline-trl-calibration
+For information on uncertainty propagation in the calibration process, see my other repository at <https://github.com/ZiadHatab/uncertainty-multiline-trl-calibration>
 
 Also, the optimization procedure to compute the propagation constant that was discussed in [1] has been removed and not used anymore in the derivation of the weighting matrix. The weighting matrix is now derived directly though low-rank Takagi decomposition. This was discussed in [4].
 
