@@ -203,22 +203,27 @@ def mTRL(Slines, lengths, Sreflect, ereff_est, reflect_est, reflect_offset, f):
     ka11b11,_,_,k = X_inv@M[:,0]
     a11b11 = ka11b11/k
     
-    # solve for a11/b11, a11 and b11 (use redundant reflect measurement, if available)
-    reflect_est = reflect_est*np.exp(-2*gamma*reflect_offset)
-    Mr = np.array([s2t(x, pseudo=True).flatten('F') for x in Sreflect]).T
-    T  = X_inv@Mr
-    a11_b11 = -T[2,:]/T[1,:]
-    a11 = np.sqrt(a11_b11*a11b11)
-    b11 = a11b11/a11
-    G_cal = ( (Sreflect[:,0,0] - a12)/(1 - Sreflect[:,0,0]*a21_a11)/a11 + (Sreflect[:,1,1] + b21)/(1 + Sreflect[:,1,1]*b12_b11)/b11 )/2  # average
-    for inx,(Gcal,Gest) in enumerate(zip(G_cal, reflect_est)):
-        if abs(Gcal - Gest) > abs(Gcal + Gest):
-            a11[inx]   = -a11[inx]
-            b11[inx]   = -b11[inx]
-            G_cal[inx] = -G_cal[inx]
-    a11 = a11.mean()
-    b11 = b11.mean()
-    reflect_est = G_cal*np.exp(2*gamma*reflect_offset)
+    if np.isnan(Sreflect[0,0,0]):
+        # no reflect measurement available
+        a11 = np.sqrt(a11b11) 
+        b11 = a11
+    else:
+        # solve for a11/b11, a11 and b11 (use redundant reflect measurement, if available)
+        reflect_est = reflect_est*np.exp(-2*gamma*reflect_offset)
+        Mr = np.array([s2t(x, pseudo=True).flatten('F') for x in Sreflect]).T
+        T  = X_inv@Mr
+        a11_b11 = -T[2,:]/T[1,:]
+        a11 = np.sqrt(a11_b11*a11b11)
+        b11 = a11b11/a11
+        G_cal = ( (Sreflect[:,0,0] - a12)/(1 - Sreflect[:,0,0]*a21_a11)/a11 + (Sreflect[:,1,1] + b21)/(1 + Sreflect[:,1,1]*b12_b11)/b11 )/2  # average
+        for inx,(Gcal,Gest) in enumerate(zip(G_cal, reflect_est)):
+            if abs(Gcal - Gest) > abs(Gcal + Gest):
+                a11[inx]   = -a11[inx]
+                b11[inx]   = -b11[inx]
+                G_cal[inx] = -G_cal[inx]
+        a11 = a11.mean()
+        b11 = b11.mean()
+        reflect_est = G_cal*np.exp(2*gamma*reflect_offset)
 
     X  = X_@np.diag([a11b11, b11, a11, 1]) # build the calibration matrix (de-normalize)
 
