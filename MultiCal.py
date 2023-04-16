@@ -297,25 +297,29 @@ def mTRL(Slines, lengths, Sreflect, gamma_est, reflect_est, reflect_offset, over
     KA1A2,_,_,k = np.linalg.pinv(X_)@thru_T.flatten('F')
     A1A2 = KA1A2/k
     
-    # solve for A1/A2, A1 and A2
-    A1 = []
-    A2 = []
-    for reflect_S, reflect_ref, offset in zip(Sreflect, reflect_est, reflect_offset):
-        G1 = reflect_S[0,0]
-        G2 = reflect_S[1,1]
-        A1_A2 = (G1 - B1)/(1 - G1*CA1)*(1 + G2*CA2)/(G2 + B2)
-        a1 = np.sqrt(A1_A2*A1A2)
-        
-        # choose correct answer for A1 and A2
-        ref_est = reflect_ref*np.exp(-2*gamma*offset)
-        G1 = (G1 - B1)/(1 - G1*CA1)/a1
-        if abs(G1 - ref_est) > abs(-G1 - ref_est):
-            a1 = -a1
-        A1.append(a1)
-        A2.append(A1A2/a1)
-    
-    A1 = np.array(A1).mean()
-    A2 = np.array(A2).mean()
+    if np.isnan(Sreflect[0,0,0]):
+        # no reflect measurement available
+        A1 = np.sqrt(A1A2)
+        A2 = A1
+    else:
+        # solve for A1/A2, A1 and A2
+        A1 = []
+        A2 = []
+        for reflect_S, reflect_ref, offset in zip(Sreflect, reflect_est, reflect_offset):
+            G1 = reflect_S[0,0]
+            G2 = reflect_S[1,1]
+            A1_A2 = (G1 - B1)/(1 - G1*CA1)*(1 + G2*CA2)/(G2 + B2)
+            a1 = np.sqrt(A1_A2*A1A2)
+            
+            # choose correct answer for A1 and A2
+            ref_est = reflect_ref*np.exp(-2*gamma*offset)
+            G1 = (G1 - B1)/(1 - G1*CA1)/a1
+            if abs(G1 - ref_est) > abs(-G1 - ref_est):
+                a1 = -a1
+            A1.append(a1)
+            A2.append(A1A2/a1)
+        A1 = np.array(A1).mean()
+        A2 = np.array(A2).mean()
     
     # de-normalize
     X = X_@np.diag([A1A2, A2, A1, 1])

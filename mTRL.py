@@ -45,7 +45,7 @@ class mTRL:
     vol. 39, no. 7, pp. 1205-1215, July 1991.
     """
     
-    def __init__(self, lines, line_lengths, reflect, 
+    def __init__(self, lines, line_lengths, reflect=None, 
                  reflect_est=[-1], reflect_offset=[0], ereff_est=1+0j, switch_term=None):
         """
         mTRL initializer.
@@ -85,7 +85,7 @@ class mTRL:
         self.f  = lines[0].frequency.f
         self.Slines = np.array([x.s for x in lines])
         self.lengths = np.array(line_lengths)
-        self.Sreflect = np.array([x.s for x in (reflect if isinstance(reflect, list) else [reflect]) ])
+        self.Sreflect = np.ones((1,len(self.f),2,2))*np.nan if reflect is None else np.array([x.s for x in (reflect if isinstance(reflect, list) else [reflect]) ])
         self.reflect_est = np.atleast_1d(reflect_est)
         self.reflect_offset = np.atleast_1d(reflect_offset)
         self.ereff_est = ereff_est
