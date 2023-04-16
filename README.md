@@ -7,7 +7,7 @@ This repository implements two algorithms for multiline TRL calibration:
 
 For information on uncertainty propagation in the calibration process, see my other repository at <https://github.com/ZiadHatab/uncertainty-multiline-trl-calibration>
 
-Also, the optimization procedure to compute the propagation constant that was discussed in [1] has been removed and not used anymore in the derivation of the weighting matrix. The weighting matrix is now derived directly though low-rank Takagi decomposition. This was discussed in [4].
+In addition, the optimization procedure used to calculate the propagation constant, which was discussed in [1], has been removed and is no longer used in the derivation of the weighting matrix. Instead, the weighting matrix is now derived directly through low-rank Takagi decomposition, as discussed in [4].
 
 ## Comparison of Implementations
 
@@ -139,6 +139,14 @@ left_ntwk, right_ntwk = cal.reciprocal_ntwk()
 ```
 
 Keep in mind that the reciprocity of the error-boxes depends on the components they represent. If they are passive components such as connectors, reciprocity is likely to hold. However, if they consist of diodes, ferromagnetic materials, or active devices such as amplifiers, reciprocity most certainly wouldn't hold.
+
+## Using only line measurements
+
+In some applications, calibration is not necessary for its own sake, but rather to extract the propagation constant for other applications. In such scenarios, reflect measurements are unnecessary. With only the line standards, you can calculate the propagation constant. Simply provide the line measurements and set the ``reflect`` variable to ``None``, or do not include it at all.
+
+```Python
+   cal = mTRL(lines=lines, line_lengths=line_lengths, ereff_est=5+0j)
+```
 
 ## Code examples
 
