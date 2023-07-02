@@ -1,44 +1,42 @@
 # Multiline TRL Calibration
 
-This repository implements two algorithms for multiline TRL calibration:
+In this repository you find two multiline TRL calibration implementations:
 
-1. An "improved" implementation based on my work [1]. The related PowerPoint slides can be found at <https://pure.tugraz.at/ws/portalfiles/portal/46207898/ziad_ARFTG_98_presentation.pdf>
+1. My own _improved_ implementation TUG multiline TRL [1]. The related PowerPoint slides can be downloaded [here](https://pure.tugraz.at/ws/portalfiles/portal/46207898/ziad_ARFTG_98_presentation.pdf). Also, the mathematical derivation can be found on my [website](https://ziadhatab.github.io/) through [this link](https://ziadhatab.github.io/posts/multiline-trl-calibration/).
+
 2. The classical MultiCal implementation from NIST [2,3].
 
-For information on uncertainty propagation in the calibration process, see my other repository at <https://github.com/ZiadHatab/uncertainty-multiline-trl-calibration>
+I have included the NIST method here as a reference, as I know many people can feel intimidated by the math that goes behind any newly introduced algorithm. It is more convenient to opt for something that has been known for more than 30 years. However, there are many reasons why the NIST method is not the best, and its optimality is limited. Below, I provide a brief comparison between the two methods. Additionally, please refer to the last example below, where I compare the two methods with Monte Carlo analysis.
 
-In addition, the optimization procedure used to calculate the propagation constant, which was discussed in [1], has been removed and is no longer used in the derivation of the weighting matrix. Instead, the weighting matrix is now derived directly through low-rank Takagi decomposition, as discussed in [4].
+_NIST multiline TRL [2,3]_:
 
-## Comparison of Implementations
+- The measurement assumes a first-order approximation with respect to any disturbance, and this should also hold true in the eigenvectors of the line pairs.
+- If the first-order approximation assumption holds true, multiple eigenvalue problems can be solved and combined using the Gauss-Markov estimator (weighted sum) to obtain a combined solution.
+- The weights are applied to the solutions (eigenvectors) and not to the measurements themselves.
+- The derived covariance matrix used to weight the eigenvectors assumes that both ports exhibit the same level of statistical error.
+- During the calibration procedure, a common line is selected, which can change across frequencies and often leads to abnormal discontinuities across the frequency axis.
 
-NIST MultiCal [2,3]:
+_TUG multiline TRL [1]_:
 
-- Assumes linear error in the measurement and that it can be modeled in the solution of the calibration coefficients (i.e., eigenvectors).
-- If the linearity assumption holds, multiple eigenvalue problems can be solved and combined using the Gauss-Markov BLUE estimator (weighted sum) to obtain a combined solution.
-- The weights are applied to the solutions (eigenvectors) and not the measurements themselves. Bare in mind the fact that The derived covariance matrix is based under certain simplifications (see [3])
+- No assumptions are made about the type of statistical error found in the measurement.
+- A weighting matrix is derived to optimally combine the measurements, resulting in a single 4x4 weighted eigenvalue problem.
+- The weighting matrix is derived to minimize the sensitivity of the eigenvectors by maximizing the eigengap (i.e., distance between the eigenvalues).
+- There is no common line. All measurements are combined at once, so all pair combinations are implicitly used.
 
-TUG mTRL [1]:
+For information on uncertainty propagation in multiline calibration, please refer to my other repository at <https://github.com/ZiadHatab/uncertainty-multiline-trl-calibration>.
 
-- Makes no assumptions about the type of error found in the  measurement.
-- A weighting matrix is derived to optimally combine the measurements (minimizing the eigenvectors sensitivity).
-- The weights are applied directly to the measurements, resulting in a single 4x4 combined eigenvalue problem to solve.
+Additionally, if you are interested in a method to eliminate the need for a thru standard and shifting the reference plane, please see my other repository demonstrating a thru-free multiline method: <https://github.com/ZiadHatab/thru-free-multiline-calibration>.
 
-## Advantages of TUG mTRL
-
-The TUG mTRL method [1] has several advantages over the NIST MultiCal approach:
-
-- No assumptions about the type of perturbations in the measurements are required.
-- A single 4x4 eigenvalue problem to solve, regardless of the number of line measurements taken.
-- The method is designed to maximize the eigenvalue separation and minimize the sensitivity of the eigenvectors, leading to improved solution accuracy of the calibration coefficients.
+**NOTE:** the optimization procedure used to calculate the propagation constant, which was discussed in [1], has been removed and is no longer used in the derivation of the weighting matrix. Instead, the weighting matrix is now derived directly through low-rank Takagi decomposition, as discussed in [4]. Furthermore, the propagation constant is derived through linear least squares.
 
 ## Code requirements
 
-The three files [`mTRL.py`](https://github.com/ZiadHatab/multiline-trl-calibration/blob/main/mTRL.py), [`MultiCal.py`](https://github.com/ZiadHatab/multiline-trl-calibration/blob/main/MultiCal.py), and [`TUGmTRL.py`](https://github.com/ZiadHatab/multiline-trl-calibration/blob/main/TUGmTRL.py) need to be in the same folder and `mTRL.py` should be loaded in your main script.
+The three files [`mTRL.py`](https://github.com/ZiadHatab/multiline-trl-calibration/blob/main/mTRL.py), [`MultiCal.py`](https://github.com/ZiadHatab/multiline-trl-calibration/blob/main/MultiCal.py), and [`TUGmTRL.py`](https://github.com/ZiadHatab/multiline-trl-calibration/blob/main/TUGmTRL.py) need to be in the same folder and [`mTRL.py`](https://github.com/ZiadHatab/multiline-trl-calibration/blob/main/mTRL.py) should be loaded in your main script.
 
-You need to have `numpy`, `matplotlib`, and `scikit-rf` installed in your Python environment. To install these packages, run the following command:
+You need to have [`numpy`][numpy] and [`scikit-rf`][skrf] installed in your Python environment. To install these packages, run the following command:
 
 ```powershell
-python -m pip install numpy matplotlib scikit-rf -U
+python -m pip install numpy scikit-rf -U
 ```
 
 ## How to use
@@ -176,10 +174,7 @@ This example demonstrate statistical performance of different mTRL calibrations 
 
 ![](images/example_3_std_0_1.png)  |  ![](images/example_3_std_0_2.png)
 :-------------------------:|:-------------------------:
-
-## To-Do
-
-I’m working on staring a GitHub Pages, where I will post the mathematical details of the algorithm. For now, you can refer to [1] and [4]. Also, feedback and discussions are always welcomed. Just post them in the issue forum.
+_Low noise_ | _High noise_
 
 ## Crediting
 
@@ -187,14 +182,18 @@ If you found yourself using my mTRL implementation, please consider citing [1] a
 
 ## References
 
-* [1] Z. Hatab, M. Gadringer and W. Bösch, "Improving The Reliability of The Multiline TRL Calibration Algorithm," 2022 98th ARFTG Microwave Measurement Conference (ARFTG), 2022, pp. 1-5, doi: [10.1109/ARFTG52954.2022.9844064](http://dx.doi.org/10.1109/ARFTG52954.2022.9844064).
+[1] Z. Hatab, M. Gadringer and W. Bösch, "Improving The Reliability of The Multiline TRL Calibration Algorithm," _2022 98th ARFTG Microwave Measurement Conference (ARFTG)_, 2022, pp. 1-5, doi: [10.1109/ARFTG52954.2022.9844064](http://dx.doi.org/10.1109/ARFTG52954.2022.9844064).
 
-* [2] D. C. DeGroot, J. A. Jargon and R. B. Marks, "Multiline TRL revealed," 60th ARFTG Conference Digest, Fall 2002., Washington, DC, USA, 2002, pp. 131-155, doi: [10.1109/ARFTGF.2002.1218696](http://dx.doi.org/10.1109/ARFTGF.2002.1218696).
+[2] D. C. DeGroot, J. A. Jargon and R. B. Marks, "Multiline TRL revealed," _60th ARFTG Conference Digest_, Fall 2002., Washington, DC, USA, 2002, pp. 131-155, doi: [10.1109/ARFTGF.2002.1218696](http://dx.doi.org/10.1109/ARFTGF.2002.1218696).
 
-* [3] R. B. Marks, "A multiline method of network analyzer calibration," in IEEE Transactions on Microwave Theory and Techniques, vol. 39, no. 7, pp. 1205-1215, July 1991, doi: [10.1109/22.85388](http://dx.doi.org/10.1109/22.85388).
+[3] R. B. Marks, "A multiline method of network analyzer calibration," in _IEEE Transactions on Microwave Theory and Techniques_, vol. 39, no. 7, pp. 1205-1215, July 1991, doi: [10.1109/22.85388](http://dx.doi.org/10.1109/22.85388).
 
-* [4] Z. Hatab, M. Gadringer, and W. Bösch, "Propagation of Linear Uncertainties through Multiline Thru-Reflect-Line Calibration," e-print: [https://arxiv.org/abs/2301.09126](https://arxiv.org/abs/2301.09126)
+[4] Z. Hatab, M. Gadringer, and W. Bösch, "Propagation of Linear Uncertainties through Multiline Thru-Reflect-Line Calibration," e-print: [https://arxiv.org/abs/2301.09126](https://arxiv.org/abs/2301.09126)
 
 ## About the license
 
 The code in this repository is licensed under the BSD-3-Clause license. Feel free to do whatever you want with the code under limitations of [BSD-3-Clause license](https://github.com/ZiadHatab/multiline-trl-calibration/blob/main/LICENSE).
+
+
+[numpy]: https://github.com/numpy/numpy
+[skrf]: https://github.com/scikit-rf/scikit-rf
