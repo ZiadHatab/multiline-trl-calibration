@@ -88,7 +88,7 @@ class mTRL:
         self.Sreflect = np.ones((1,len(self.f),2,2))*np.nan if reflect is None else np.array([x.s for x in (reflect if isinstance(reflect, list) else [reflect]) ])
         self.reflect_est = np.atleast_1d(reflect_est)
         self.reflect_offset = np.atleast_1d(reflect_offset)
-        self.ereff_est = ereff_est
+        self.ereff_est = ereff_est*(1+0j)  # make complex
         
         if switch_term is not None:
             self.switch_term = np.array([x.s.squeeze() for x in switch_term])
