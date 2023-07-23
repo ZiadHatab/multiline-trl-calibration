@@ -120,13 +120,13 @@ def solve_quadratic(v1, v2, inx, x_est):
         k2 = -v11*v22*v24/v12 + v11*v14*v22**2/v12**2 + v21*v24 - v14*v21*v22/v12
         k1 = v11*v24/v12 - 2*v11*v14*v22/v12**2 - v23 + v13*v22/v12 + v14*v21/v12
         k0 = v11*v14/v12**2 - v13/v12
-        c2 = np.array([(-k1 - np.sqrt(-4*k0*k2 + k1**2))/(2*k2), (-k1 + np.sqrt(-4*k0*k2 + k1**2))/(2*k2)])
+        c2 = np.roots([k2,k1,k0])*np.ones(2)
         c1 = (1 - c2*v22)/v12
     else:
         k2 = -v11*v12*v24/v22 + v11*v14 + v12**2*v21*v24/v22**2 - v12*v14*v21/v22
         k1 = v11*v24/v22 - 2*v12*v21*v24/v22**2 + v12*v23/v22 - v13 + v14*v21/v22
         k0 = v21*v24/v22**2 - v23/v22
-        c1 = np.array([(-k1 - np.sqrt(-4*k0*k2 + k1**2))/(2*k2), (-k1 + np.sqrt(-4*k0*k2 + k1**2))/(2*k2)])
+        c1 = np.roots([k2,k1,k0])*np.ones(2)
         c2 = (1 - c1*v12)/v22
     x = np.array( [v1*x + v2*y for x,y in zip(c1,c2)] )  # 2 solutions
     mininx = np.argmin( abs(x - x_est).sum(axis=1) )
