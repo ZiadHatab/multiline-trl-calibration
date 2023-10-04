@@ -178,7 +178,7 @@ _Low noise_ | _High noise_
 
 ## Crediting
 
-If you found yourself using my mTRL implementation, please consider citing [1] and [4].
+If you found yourself using my code, please consider citing [1] and [4].
 
 ## References
 
@@ -188,7 +188,8 @@ If you found yourself using my mTRL implementation, please consider citing [1] a
 
 [3] R. B. Marks, "A multiline method of network analyzer calibration," in _IEEE Transactions on Microwave Theory and Techniques_, vol. 39, no. 7, pp. 1205-1215, July 1991, doi: [10.1109/22.85388](http://dx.doi.org/10.1109/22.85388).
 
-[4] Z. Hatab, M. Gadringer, and W. Bösch, "Propagation of Linear Uncertainties through Multiline Thru-Reflect-Line Calibration," e-print: [https://arxiv.org/abs/2301.09126](https://arxiv.org/abs/2301.09126)
+[4] Z. Hatab, M. E. Gadringer, and W. Bösch, "Propagation of Linear Uncertainties through Multiline Thru-Reflect-Line Calibration," in _IEEE Transactions on Instrumentation and Measurement_, vol. 72, pp. 1-9, 2023, doi: [10.1109/TIM.2023.3296123](http://dx.doi.org/10.1109/TIM.2023.3296123).
+
 
 ## About the license
 
