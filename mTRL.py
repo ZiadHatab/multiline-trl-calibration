@@ -338,6 +338,7 @@ class mTRL:
             K_new.append(KX_new[-1,-1])
         self.X = np.array(X_new)
         self.k = np.array(K_new)
+        self.error_coef() # update the 12-error terms
     
     def renorm_impedance(self, Z_new, Z0=50):
         '''
@@ -361,5 +362,5 @@ class mTRL:
 
         self.X = np.array(X_new)
         self.k = np.array(K_new)
-
+        self.error_coef() # update the 12-error terms
 # EOF
