@@ -1,12 +1,14 @@
 # Multiline TRL Calibration
 
+**NOTE:** The TUG multiline TRL procedure is already part of the [scikit-rf package](https://scikit-rf.readthedocs.io/en/latest/api/calibration/generated/skrf.calibration.calibration.TUGMultilineTRL.html).
+
 In this repository you find two multiline TRL calibration implementations:
 
 1. My own _improved_ implementation TUG multiline TRL [1]. The related PowerPoint slides can be downloaded [here](https://pure.tugraz.at/ws/portalfiles/portal/46207898/ziad_ARFTG_98_presentation.pdf). Also, the mathematical derivation can be found on my [website](https://ziadhatab.github.io/) through [this link](https://ziadhatab.github.io/posts/multiline-trl-calibration/).
 
 2. The classical MultiCal implementation from NIST [2,3].
 
-I have included the NIST method here as a reference, as I know many people can feel intimidated by the math that goes behind any newly introduced algorithm. It is more convenient to opt for something that has been known for more than 30 years. However, there are many reasons why the NIST method is not the best, and its optimality is limited. Below, I provide a brief comparison between the two methods. Additionally, please refer to the last example below, where I compare the two methods with Monte Carlo analysis.
+I have included the NIST method here as a reference. There are a couple of reasons why the NIST method is not the best, and its optimality is limited. Below, I provide a brief comparison between the two methods. Additionally, please refer to the last example below, where I compare the two methods with Monte Carlo analysis.
 
 _NIST multiline TRL [2,3]_:
 
@@ -193,7 +195,7 @@ If you found yourself using my code, please consider citing [1] and [4].
 
 ## About the license
 
-The code in this repository is licensed under the BSD-3-Clause license. Feel free to do whatever you want with the code under limitations of [BSD-3-Clause license](https://github.com/ZiadHatab/multiline-trl-calibration/blob/main/LICENSE).
+Feel free to do whatever you want with the code under limitations of [BSD-3-Clause license](https://github.com/ZiadHatab/multiline-trl-calibration/blob/main/LICENSE).
 
 
 [numpy]: https://github.com/numpy/numpy
