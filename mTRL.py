@@ -190,16 +190,35 @@ class mTRL:
         # if 1-port, convert to 2-port (later convert back to 1-port)
         if nports < 2:
             NW = rf.two_port_reflect(NW)
+
         # apply cal
+        P = np.array([[1,0,0,0], [0, 0,1,0], [0,1, 0,0], [0,0,0,1]])  # permute matrix
+        q = np.array([[0,1],[1,0]])
         S_cal = []
         for x,k,s,sw in zip(self.X, self.k, NW.s, self.switch_term.T):
-            s    = correct_switch_term(s, sw[0], sw[1]) if np.any(sw) else s
+            s    = correct_switch_term(s, sw[0], sw[1]) if np.any(sw) else s  # swictch term correction
+            """
+            Correction based on the bilinear fractional transformation.
+            R. A. Speciale, "Projective Matrix Transformations in Microwave Network Theory," 
+            1981 IEEE MTT-S International Microwave Symposium Digest, Los Angeles, CA, USA, 
+            1981, pp. 510-512, doi: 10.1109/MWSYM.1981.1129979
+            """
+            A = np.array([[x[2,2],x[2,3]],[x[3,2],1]])
+            B = np.array([[x[1,1],x[3,1]],[x[1,3],1]])
+            Zero = A*0
+            E = P.T@np.block([[A*k, Zero],[Zero, q@np.linalg.inv(B)@q]])@P
+            E11,E12,E21,E22 = E[:2,:2], E[:2,2:], E[2:,:2], E[2:,2:]
+            S_cal.append( np.linalg.inv(s@E21-E11)@(E12-s@E22) )
+            
+            '''
+            # Error-box correcrion procedure (unstable for pure reflect measurements)
             xinv = np.linalg.pinv(x)
             M_ = np.array([-s[0,0]*s[1,1]+s[0,1]*s[1,0], -s[1,1], s[0,0], 1])
             T_ = xinv@M_
             s21_cal = k*s[1,0]/T_[-1]
             T_ = T_/T_[-1]
             S_cal.append([[T_[2], (T_[0]-T_[2]*T_[1])/s21_cal],[s21_cal, -T_[1]]])
+            '''
         S_cal = np.array(S_cal)
         freq  = NW.frequency
         
