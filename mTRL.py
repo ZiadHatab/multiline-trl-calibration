@@ -342,17 +342,19 @@ class mTRL:
         right_ntwk.flip()
         return left_ntwk, right_ntwk
     
-    def shift_plane(self, d=0):
+    def shift_plane(self, da=0, db=None):
         '''
-        Shift calibration plane by a distance d.
+        Shift calibration plane by a distance d from either ports. 
+        da is the shift from port-1 (left), and db is the shift from port-2 (right).
         Negative d value shifts toward port, while positive d value shift away from port.
-        For example, if your Thru has a length of L, then d=-L/2 shifts the plane backward to the edges of the Thru.
+        For example, if your Thru has a length of L, then da=db=-L/2 shifts the plane backward to the edges of the Thru.
         '''
+
+        db = db if db is not None else da  # use da if db is not given
         X_new = []
         K_new = []
         for x,k,g in zip(self.X, self.k, self.gamma):
-            z = np.exp(-g*d)
-            KX_new = k*x@np.diag([z**2, 1, 1, 1/z**2])
+            KX_new = k*x@np.diag([np.exp(-g*(db+da)), np.exp(-g*(db-da)), np.exp(g*(db-da)), np.exp(g*(db+da))])
             X_new.append(KX_new/KX_new[-1,-1])
             K_new.append(KX_new[-1,-1])
         self.X = np.array(X_new)
