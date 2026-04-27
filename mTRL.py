@@ -123,9 +123,9 @@ class mTRL:
         reflect_offset = self.reflect_offset
         
         # initial estimate
-        ereff0  = self.ereff_est
-        gamma0  = 2*np.pi*self.f[0]/c0*np.sqrt(-ereff0)
-        
+        gamma0 = 2*np.pi*self.f[0]/c0*np.sqrt(-self.ereff_est)
+        gamma0 = np.sign(gamma0.imag)*gamma0  # ensure positive imaginary part to indicate delay (causality)
+
         # perform the calibration
         for inx, f in enumerate(self.f):
             Slines = self.Slines[:,inx,:,:]
@@ -168,24 +168,35 @@ class mTRL:
         lengths = self.lengths
         
         # initial estimate
-        ereff0  = self.ereff_est
+        gamma0 = 2*np.pi*self.f[0]/c0*np.sqrt(-self.ereff_est)
+        gamma0 = np.sign(gamma0.imag)*gamma0  # ensure positive imaginary part to indicate delay (causality)
         reflect0 = self.reflect_est
         reflect_offset = self.reflect_offset
+        
+        # additional parameters for TUGmTRL
+        compensate_repeated_lines = self.compensate_repeated_lines
+        lnorm = self.lnorm
+
         # perform the calibration
         for inx, f in enumerate(self.f):
             Slines = self.Slines[:,inx,:,:]
             Sreflect = self.Sreflect[:,inx,:,:]
             sw = self.switch_term[:,inx]
-            compensate_repeated_lines = self.compensate_repeated_lines
-            lnorm = self.lnorm
 
             # correct switch term
-            Slines = [correct_switch_term(x,sw[0],sw[1]) for x in Slines] if np.any(sw) else Slines
+            Slines   = [correct_switch_term(x,sw[0],sw[1]) for x in Slines] if np.any(sw) else Slines
             Sreflect = [correct_switch_term(x,sw[0],sw[1]) for x in Sreflect] if np.any(sw) else Sreflect
             
-            X, k, ereff0, gamma, reflect0_cal, lambd, kappa, lambd_S, kappa_S = TUGmTRL.mTRL(Slines, lengths, Sreflect, ereff0, 
-                                                                    reflect0, reflect_offset, f,
-                                                                    compensate_repeated_lines, lnorm)
+            X, k, gamma, reflect0_cal, lambd, kappa, lambd_S, kappa_S = TUGmTRL.mTRL(Slines, lengths, Sreflect, 
+                                                                                     gamma0, reflect0, reflect_offset, 
+                                                                                     compensate_repeated_lines, lnorm)
+            # update gamma0 for the next frequency point.
+            # This is better than recomputing ereff, to avoid sqrt sign inconsistencies.
+            if inx+1 < len(self.f):
+                gamma0 = (gamma/f)*self.f[inx+1]
+            
+            # update reflect0 if recursive_reflect is True. 
+            # This can improve the results if the initial estimate of the reflect standard is not accurate.
             if recursive_reflect:
                 reflect0 = reflect0_cal
             

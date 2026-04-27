@@ -32,9 +32,10 @@ Las Vegas, NV, USA, 2022, pp. 1-5, doi: 10.1109/ARFTG52954.2022.9844064.
 IEEE Transactions on Microwave Theory and Techniques, 
 vol. 39, no. 7, pp. 1205-1215, July 1991.
 
-[4] Z. Hatab, M. Gadringer, and W. Bösch, 
-"Propagation of Linear Uncertainties through Multiline Thru-Reflect-Line Calibration," 
-e-print: https://arxiv.org/abs/2301.09126
+[4] Z. Hatab, M. E. Gadringer and W. Bösch, 
+"Propagation of Linear Uncertainties Through Multiline Thru-Reflect-Line Calibration," 
+in IEEE Transactions on Instrumentation and Measurement, 
+vol. 72, pp. 1-9, 2023, Art no. 1007409, doi: 10.1109/TIM.2023.3296123.
 
 ##########-NOTE-##########
 This script is written to process only one frequency point. Therefore, you need 
@@ -86,27 +87,20 @@ def Vgl(N):
     # inverse covariance matrix for propagation constant computation
     return np.eye(N-1, dtype=complex) - (1/N)*np.ones(shape=(N-1, N-1), dtype=complex)
 
-def compute_gamma(X_inv, M, lengths, gamma_est, inx=0):
+def compute_gamma(z, y, lengths, gamma_est, inx=0):
     # gamma = alpha + 1j*beta is determined through linear weighted least-squares    
     lengths = lengths - lengths[inx]
-    EX = (X_inv@M)[[0,-1],:]                  # extract z and y columns
-    EX = np.diag(1/EX[:,inx])@EX              # normalize to a reference line based on index `inx` (can be any)
-    
+    z = z/z[inx]
+    y = y/y[inx]
     del_inx = np.arange(len(lengths)) != inx  # get rid of the reference line (i.e., thru)
-    
-    # solve for alpha
-    l = -2*lengths[del_inx]
-    gamma_l = np.log(EX[0,:]/EX[-1,:])[del_inx]
-    alpha =  WLS(l, gamma_l.real, Vgl(len(l)+1))
-    
-    # solve for beta
+
     l = -lengths[del_inx]
-    gamma_l = np.log((EX[0,:] + 1/EX[-1,:])/2)[del_inx]
+    gamma_l = np.log((z + 1/y)/2)[del_inx]
     n = np.round( (gamma_l - gamma_est*l).imag/np.pi/2 )
     gamma_l = gamma_l - 1j*2*np.pi*n # unwrap
-    beta = WLS(l, gamma_l.imag, Vgl(len(l)+1))
+    gamma = WLS(l, gamma_l, Vgl(len(l)+1))
     
-    return alpha + 1j*beta 
+    return gamma.real + 1j*abs(gamma.imag) # ensure delay is positive (causality) in case unwrapping is not perfect.
 
 def solve_quadratic(v1, v2, inx, x_est):
     # inx contain index of the unit value and product 
@@ -132,20 +126,17 @@ def solve_quadratic(v1, v2, inx, x_est):
     mininx = np.argmin( abs(x - x_est).sum(axis=1) )
     return x[mininx]
 
-def mTRL(Slines, lengths, Sreflect, ereff_est, reflect_est, reflect_offset, f,
+def mTRL(Slines, lengths, Sreflect, gamma_est, reflect_est, reflect_offset,
          compensate_repeated_lines, lnorm):
     '''  
-    Slines      : 3D array of 2D S-parameters of line measurements (first is set to Thru)
-    lengths     : 1D array containing line lengths in same order of measurements
-    Sreflect    : 3D array of 2D S-parameters of the measured reflects (can be multiple)
-    ereff_est   : Scalar of estimated ereff 
-    reflect_est : 1D array of reference reflection coefficients
-    f           : Scalar, single frequency point (Hz)
-    compensate_repeated_lines : boolean
-        apply scaling to the line measurements with repeated lengths.
-    lnorm      : int
-        specify the norm-weighting in the eigenvalue problem. Default is 1 (L1 norm).
-        only lnorm = 1 and lnorm = 2 are stable. Higher values are just numerically unstable.
+    Slines         : 3D array of 2D S-parameters of line measurements (first is set to Thru)
+    lengths        : 1D array containing line lengths in same order of measurements
+    Sreflect       : 3D array of 2D S-parameters of the measured reflects (can be multiple)
+    gamma_est      : Scalar, estimated propagation constant.
+    reflect_est    : 1D array of reference reflection coefficients
+    reflect_offset : Scalar, the offset distance for the reflect measurement relative to the first line (thru).
+    compensate_repeated_lines : boolean, apply scaling to the line measurements with repeated lengths.
+    lnorm          : int, specify the norm-weighting in the eigenvalue problem. Default is 1 (L1 norm).
     '''
     #  make sure all inputs have proper shape
     Slines         = np.atleast_3d(Slines).reshape((-1,2,2))
@@ -153,7 +144,8 @@ def mTRL(Slines, lengths, Sreflect, ereff_est, reflect_est, reflect_offset, f,
     Sreflect       = np.atleast_3d(Sreflect).reshape((-1,2,2))
     reflect_est    = np.atleast_1d(reflect_est)
     
-    lengths = lengths - lengths[0]  # set the first line Thru
+    # set the first line Thru
+    lengths = lengths - lengths[0]
     
     # measurements
     Mi   = np.array([s2t(x) for x in Slines]) # convert to T-parameters
@@ -163,37 +155,53 @@ def mTRL(Slines, lengths, Sreflect, ereff_est, reflect_est, reflect_offset, f,
     ## Compute W via Takagi decomposition (also the eigenvalue lambda is computed)
     G, lambd = compute_G_with_takagi(Dinv@M.T@P@Q@M)
     W = (G@np.array([[0,1j],[-1j,0]])@G.T).conj()
-    kappa = 2*lambd/abs(W).sum() # this is the normalized eigenvalue without scaling
+    kappa = 2*lambd/abs(W).sum() # this is the normalized eigenvalue without scaling (for effective phase computation)
 
-    gamma_est = 2*np.pi*f/c0*np.sqrt(-ereff_est)
-    gamma_est = abs(gamma_est.real) + 1j*abs(gamma_est.imag)  # this to avoid sign inconsistencies 
-        
+    ## compute z = exp(-gamma*length) and y = 1/z from matrix G.
+    zy = G@np.array([[1,-1j],[1j,1]])@G.T  # could be np.outer(z,y) or np.outer(y,z) depending on the sign of W
+    u,_,vh = np.linalg.svd(zy)  # rank-1 recovery
+    z = u[:,0]   # ambiguous up to a scaling factor
+    y = vh[0,:]  # ambiguous up to a scaling factor
+    
+    ## pick the sign of W and swap z and y if needed.
     z_est = np.exp(-gamma_est*lengths)
     y_est = 1/z_est
-    W_est = (np.outer(y_est,z_est) - np.outer(z_est,y_est)).conj()
-    W = -W if abs(W-W_est).sum() > abs(W+W_est).sum() else W # resolve the sign ambiguity
+    lambd_est = y_est.dot(W).dot(z_est)  # projection of the estimated z and y onto the weighting matrix W. This is how lambda is defined.
+    if abs(lambd_est - lambd) > abs(lambd_est + lambd):
+        W = -W
+        y, z = z, y  # swap z and y if the sign of W is flipped
     
-    # incorporate scaling to the weighting matrix.
-    # Percentage of occurrence for redundant (duplicate) lengths:
+    ## incorporate scaling to the weighting matrix.
+    # S1: Percentage of occurrence for redundant (duplicate) lengths:
     # e.g., [0, 2, 3, 4, 3] -> [1, 1, 0.5, 1, 0.5]
     _, inv, counts = np.unique(lengths, return_inverse=True, return_counts=True)
     q  = 1/counts[inv]
     S1 = np.outer(q, q) if compensate_repeated_lines else 1
+    # S2: change L-norm weighting of the eigenvalue problem (e.g., L1, L2, etc.)
     S2 = abs(W)**(lnorm-1)
     S  = S1*S2 # combined scaling to account for both repeated lines and norm-weighting
     WS  = W*S  # new weighting matrix scaled by S.
     
-    lambd_S = (0.5*WS.conj()*W).sum()  # this is the eigenvalue of the weighted eigenvalue problem
-    kappa_S = 2*lambd_S/abs(WS).sum()  # this is the normalized eigenvalue of the weighted eigenvalue problem
+    # new scaled eigenvalue and normalized eigenvalue after scaling the weighting matrix by S.
+    lambd_S = 0.5*abs(WS.conj()*W).sum()
+    kappa_S = 2*lambd_S/abs(WS).sum()
 
     ## weighted eigenvalue problem
     F = M@WS@Dinv@M.T@P@Q
-    eigval, eigvec = np.linalg.eig(F+lambd_S*np.eye(4))
+    eigval, eigvec = np.linalg.eig(F)
     inx = np.argsort(abs(eigval))
-    v1 = eigvec[:,inx[0]]
-    v2 = eigvec[:,inx[1]]
-    v3 = eigvec[:,inx[2]]
+    # null space
+    v2 = eigvec[:,inx[0]]
+    v3 = eigvec[:,inx[1]]
+    # range space
+    v1 = eigvec[:,inx[2]]
     v4 = eigvec[:,inx[3]]
+    # eigenvalue from the eigenvalue problem should be same to the one computed from Takagi decomposition.
+    lambd_eigval = (eigval[inx[3]] - eigval[inx[2]])/2  
+    if abs(lambd_eigval - lambd_S) > abs(lambd_eigval + lambd_S):
+        v1, v4 = v4, v1  # swap if assumed order is wrong.
+    # build estimates for x1_, x2_, x3_, and x4 from the eigenvectors 
+    # these are used as initial estimates for solving the quadratic equations below
     x1__est = v1/v1[0]
     x1__est[-1] = x1__est[1]*x1__est[2]
     x4_est = v4/v4[-1]
@@ -213,16 +221,33 @@ def mTRL(Slines, lengths, Sreflect, ereff_est, reflect_est, reflect_offset, f,
     a21_a11 = (x1_[1] + x3_[3])/2
     b12_b11 = (x1_[2] + x2_[3])/2
     X_  = np.kron([[1,b21],[b12_b11,1]], [[1,a12],[a21_a11,1]])
-    
     X_inv = np.linalg.inv(X_)
-    ## Compute propagation constant
-    gamma = compute_gamma(X_inv, M, lengths, gamma_est)
-    ereff = -(c0/2/np.pi/f*gamma)**2
     
-    # solve for a11b11 and K from Thru measurement
+    ## Compute propagation constant using error terms
+    # method-1: use z, y from the takagi decomposition (matrix G)
+    gamma1 = compute_gamma(z, y, lengths, gamma_est)
+    # method-2: use z, y from de-embedding the lines
+    z, y = (X_inv@M)[[0,-1],:] # z and y are ambiguous up to a scaling factor.
+    gamma2 = compute_gamma(z, y, lengths, gamma_est)
+
+    # choose which gamma solution approach is more consistent with known lambda.
+    z1 = np.exp(-gamma1*lengths)
+    y1 = 1/z1
+    lambd1 = y1.dot(W).dot(z1)
+    z2 = np.exp(-gamma2*lengths)
+    y2 = 1/z2
+    lambd2 = y2.dot(W).dot(z2)
+    if abs(lambd1 - lambd) < abs(lambd2 - lambd):
+        gamma = gamma1
+    else:
+        gamma = gamma2
+    
+    ## solve for a11b11 and K from Thru measurement
     ka11b11,_,_,k = X_inv@M[:,0]
     a11b11 = ka11b11/k
     
+    ## solve for a11 and b11 using the reflect measurement, if available. 
+    # Otherwise, set a11 = b11 = sqrt(a11b11).
     if np.isnan(Sreflect[0,0,0]):
         # no reflect measurement available
         a11 = np.sqrt(a11b11) 
@@ -247,6 +272,6 @@ def mTRL(Slines, lengths, Sreflect, ereff_est, reflect_est, reflect_offset, f,
 
     X  = X_@np.diag([a11b11, b11, a11, 1]) # build the calibration matrix (de-normalize)
 
-    return X, k, ereff, gamma, reflect_est, lambd, kappa, lambd_S, kappa_S
+    return X, k, gamma, reflect_est, lambd, kappa, lambd_S, kappa_S
 
 # EOF
