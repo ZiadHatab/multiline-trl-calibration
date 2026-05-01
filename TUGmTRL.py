@@ -1,46 +1,53 @@
 """
 @author: Ziad Hatab (zi.hatab@gmail.com)
 
-This is an implementation of multiline TRL calibration algorithm discussed in [1].
-The implementation is different from the MultiCal algorithm from NIST [2,3], which solves N-1 
-eigenvalue problems and combines their results using a Gauss-Markov linear estimator. 
+TUG Multiline TRL Calibration (TUGmTRL)
+=======================================
 
-The computation of the weighting matrix via Takagi decomposition was discussed in [4].
+This module implements the improved TUG multiline TRL calibration algorithm
+as described in [1,4]. It is designed for optimal combination of all line
+measurements using a single, weighted eigenvalue problem. The weighting
+matrix is derived via low-rank Takagi decomposition, maximizing the eigengap
+and minimizing eigenvector sensitivity. No assumptions are made about the
+type of statistical error in the measurements, and no common line is
+required---all measurements are combined at once.
 
-TUGmTRL:
-    - Combines all lines measurement linearly using an optimal weighting matrix.
-    - Solves a single eigenvalue problem.
-    - Does not make assumptions about noise perturbation and aims to minimize 
-    error perturbation on eigenvectors.
+This implementation is distinct from the classical MultiCal algorithm from
+NIST [2,3], which solves N-1 eigenvalue problems and combines their results
+using a Gauss-Markov estimator. In MultiCal, weights are applied to the
+eigenvectors, not directly to the measurements, and a common line is selected
+during calibration, which can change across frequencies and cause
+discontinuities.
 
-MultiCal:
-    - Chooses a common line and creates N-1 pairs (N-1 eigenvalue problems).
-    - Solves for the eigenvectors of the N-1 eigenvalue problems.
-    - Combines the results using a Gauss-Markov linear estimator. 
-    Linearity of the eigenvectors with respect to any perturbation must remain linear for this to work!
+Key Features (TUGmTRL):
+- No assumptions about measurement error statistics.
+- All line measurements are optimally combined into a single 4×4 weighted
+    eigenvalue problem.
+- The weighting matrix is derived via Takagi decomposition [4].
+- The propagation constant is estimated via linear least squares.
+- No common line selection is required.
 
-[1] Z. Hatab, M. Gadringer and W. Bösch, 
-"Improving The Reliability of The Multiline TRL Calibration Algorithm," 
-2022 98th ARFTG Microwave Measurement Conference (ARFTG), 
-Las Vegas, NV, USA, 2022, pp. 1-5, doi: 10.1109/ARFTG52954.2022.9844064.
+References:
+[1] Z. Hatab, M. Gadringer and W. Bösch, "Improving The Reliability of The
+    Multiline TRL Calibration Algorithm," 2022 98th ARFTG Microwave
+    Measurement Conference (ARFTG), 2022, pp. 1-5,
+    doi: 10.1109/ARFTG52954.2022.9844064.
+[2] D. C. DeGroot, J. A. Jargon and R. B. Marks, "Multiline TRL revealed,"
+    60th ARFTG Conference Digest, Fall 2002, pp. 131-155,
+    doi: 10.1109/ARFTGF.2002.1218696.
+[3] R. B. Marks, "A multiline method of network analyzer calibration,"
+    IEEE Transactions on Microwave Theory and Techniques, vol. 39, no. 7,
+    pp. 1205-1215, July 1991, doi: 10.1109/22.85388.
+[4] Z. Hatab, M. E. Gadringer, and W. Bösch, "Propagation of Linear
+    Uncertainties through Multiline Thru-Reflect-Line Calibration,"
+    IEEE Transactions on Instrumentation and Measurement, vol. 72, pp. 1-9,
+    2023, doi: 10.1109/TIM.2023.3296123.
 
-[2] D. C. DeGroot, J. A. Jargon and R. B. Marks, "Multiline TRL revealed," 
-60th ARFTG Conference Digest, Fall 2002., 
-2002, pp. 131-155, doi: 10.1109/ARFTGF.2002.1218696.
-
-[3] R. B. Marks, "A multiline method of network analyzer calibration", 
-IEEE Transactions on Microwave Theory and Techniques, 
-vol. 39, no. 7, pp. 1205-1215, July 1991.
-
-[4] Z. Hatab, M. E. Gadringer and W. Bösch, 
-"Propagation of Linear Uncertainties Through Multiline Thru-Reflect-Line Calibration," 
-in IEEE Transactions on Instrumentation and Measurement, 
-vol. 72, pp. 1-9, 2023, Art no. 1007409, doi: 10.1109/TIM.2023.3296123.
-
-##########-NOTE-##########
-This script is written to process only one frequency point. Therefore, you need 
-to call this script in your main script and iterate through all frequency points.
-##########-END-##########
+Note:
+-----
+This script processes only one frequency point at a time. To calibrate across
+a frequency sweep, call this function in your main script and iterate over all
+frequency points.
 """
 
 # python -m pip install numpy -U
