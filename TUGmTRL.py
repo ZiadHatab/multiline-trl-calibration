@@ -12,6 +12,11 @@ and minimizing eigenvector sensitivity. No assumptions are made about the
 type of statistical error in the measurements, and no common line is
 required---all measurements are combined at once.
 
+Additionally, I modified the Thru normalization step, which is now done with S-parameters 
+instead of T-parameters as in done in [5]. Multiple reflect measurements are supported 
+and handled via rank-1 recovery. There is also an option to apply scaling to the line measurements 
+with repeated lengths and change the L-norm weighting in the eigenvalue problem (see appendix section in [6])
+
 This implementation is distinct from the classical MultiCal algorithm from
 NIST [2,3], which solves N-1 eigenvalue problems and combines their results
 using a Gauss-Markov estimator. In MultiCal, weights are applied to the
@@ -42,6 +47,12 @@ References:
     Uncertainties through Multiline Thru-Reflect-Line Calibration,"
     IEEE Transactions on Instrumentation and Measurement, vol. 72, pp. 1-9,
     2023, doi: 10.1109/TIM.2023.3296123.
+[5] Z. Hatab, M. E. Gadringer and W. Bösch, "A Thru-Free Multiline Calibration," 
+    in IEEE Transactions on Instrumentation and Measurement, vol. 72, pp. 1-9, 2023, 
+    Art no. 1008709, doi: 10.1109/TIM.2023.3308226.
+[6] Z. Hatab, M. E. Gadringer, and W. Bösch, "The Choice of Line Lengths in 
+    Multiline Thru-Reflect-Line Calibration," 
+    arXiv e-print: https://arxiv.org/abs/2512.18641
 
 Note:
 -----
@@ -55,8 +66,9 @@ import numpy as np
 
 # constants
 c0 = 299792458
-Q = np.array([[0,0,0,1], [0,-1,0,0], [0,0,-1,0], [1,0,0,0]])
-P = np.array([[1,0,0,0], [0, 0,1,0], [0,1, 0,0], [0,0,0,1]])
+Q  = np.array([[0,0,0,1], [0,-1,0,0], [0,0,-1,0], [1,0,0,0]])
+P  = np.array([[1,0,0,0], [0, 0,1,0], [0,1, 0,0], [0,0,0,1]])
+P2 = np.array([[0,1],[1,0]])  # 2x2 permutation matrix
 
 def s2t(S, pseudo=False):
     T = S.copy()
@@ -73,6 +85,22 @@ def t2s(T, pseudo=False):
     S[1,0] = 1
     S[1,1] = -T[1,0]
     return S if pseudo else S/T[1,1]
+
+def LFT(E, S):
+    # Linear fractional transformation
+    # R. A. Speciale, "Projective Matrix Transformations in Microwave Network Theory," 
+    #        1981 IEEE MTT-S International Microwave Symposium Digest, Los Angeles, CA, USA.
+    N = S.shape[0]
+    E11, E12, E21, E22 = E[:N,:N], E[:N,N:], E[N:,:N], E[N:,N:]
+    return (E11@S + E12)@np.linalg.inv(E21@S + E22)
+
+def LFTinv(E, S):
+    # inverse linear fractional transformation
+    # R. A. Speciale, "Projective Matrix Transformations in Microwave Network Theory," 
+    #        1981 IEEE MTT-S International Microwave Symposium Digest, Los Angeles, CA, USA.
+    N = S.shape[0]
+    E11, E12, E21, E22 = E[:N,:N], E[:N,N:], E[N:,:N], E[N:,N:]
+    return np.linalg.inv(S@E21 - E11)@(E12 - S@E22)
 
 def compute_G_with_takagi(A):
     # implementation of Takagi decomposition to compute the matrix G used to determine the weighting matrix.
@@ -159,7 +187,7 @@ def mTRL(Slines, lengths, Sreflect, gamma_est, reflect_est, reflect_offset,
     M    = np.array([x.flatten('F') for x in Mi]).T
     Dinv = np.diag([1/np.linalg.det(x) for x in Mi])
 
-    ## Compute W via Takagi decomposition (also the eigenvalue lambda is computed)
+    ## compute W via Takagi decomposition (also the eigenvalue lambda is computed)
     G, lambd = compute_G_with_takagi(Dinv@M.T@P@Q@M)
     W = (G@np.array([[0,1j],[-1j,0]])@G.T).conj()
     kappa = 2*lambd/abs(W).sum() # this is the normalized eigenvalue without scaling (for effective phase computation)
@@ -178,7 +206,7 @@ def mTRL(Slines, lengths, Sreflect, gamma_est, reflect_est, reflect_offset,
         W = -W
         y, z = z, y  # swap z and y if the sign of W is flipped
     
-    ## incorporate scaling to the weighting matrix.
+    ## incorporate scaling to the weighting matrix. See [6] for details.
     # S1: Percentage of occurrence for redundant (duplicate) lengths:
     # e.g., [0, 2, 3, 4, 3] -> [1, 1, 0.5, 1, 0.5]
     _, inv, counts = np.unique(lengths, return_inverse=True, return_counts=True)
@@ -227,14 +255,26 @@ def mTRL(Slines, lengths, Sreflect, gamma_est, reflect_est, reflect_offset,
     b21 = (x3_[0] + x4[1])/2
     a21_a11 = (x1_[1] + x3_[3])/2
     b12_b11 = (x1_[2] + x2_[3])/2
-    X_  = np.kron([[1,b21],[b12_b11,1]], [[1,a12],[a21_a11,1]])
-    X_inv = np.linalg.inv(X_)
+    # normalized error terms
+    A_ = np.array([[1,a12],[a21_a11,1]])
+    B_ = np.array([[1,b12_b11],[b21,1]])
+    X_ = np.kron(B_.T, A_)
+    Zero = np.zeros_like(A_)
+    E_ = P.T@np.block([[A_, Zero],[Zero, P2@np.linalg.inv(B_)@P2]])@P # 16-term structure
     
-    ## Compute propagation constant using error terms
+    # recovers S21 = exp(-gamma*length) and factor k^2*a11*b11 from rank-1 recovery from all lines.
+    # k^2*a11*b11 not used, as transmission normalization is enforced by the thru measurement.
+    Slines_cal = np.array([LFTinv(E_, s) for s in Slines])
+    R = np.vstack(( Slines_cal[:, 1, 0], Slines_cal[:, 0, 1]))
+    u,_,vh = np.linalg.svd(R)  # rank-1 recovery
+    s21 = vh[0,:]/vh[0,0]  # this is exp(-gamma*length) (normalized to the thru)
+    # k2a11b11 = u[1,0]/u[0,0]   # k^2*a11*b11
+
+    ## compute propagation constant using error terms
     # method-1: use z, y from the takagi decomposition (matrix G)
     gamma1 = compute_gamma(z, y, lengths, gamma_est)
     # method-2: use z, y from de-embedding the lines
-    z, y = (X_inv@M)[[0,-1],:] # z and y are ambiguous up to a scaling factor.
+    z, y = s21, 1/s21
     gamma2 = compute_gamma(z, y, lengths, gamma_est)
 
     # choose which gamma solution approach is more consistent with known lambda.
@@ -249,32 +289,34 @@ def mTRL(Slines, lengths, Sreflect, gamma_est, reflect_est, reflect_offset,
     else:
         gamma = gamma2
     
-    ## solve for a11b11 and K from Thru measurement
-    ka11b11,_,_,k = X_inv@M[:,0]
-    a11b11 = ka11b11/k
+    ## solve for a11b11 and K from Thru measurement. 
+    # using S-parameter formulation [5]. Forces S21=S12=1. 
+    k = 1/Slines_cal[0,1,0]
+    a11b11  = Slines_cal[0,0,1]/k
     
     ## solve for a11 and b11 using the reflect measurement, if available. 
-    # Otherwise, set a11 = b11 = sqrt(a11b11).
+    # otherwise, set a11 = b11 = sqrt(a11b11).
     if np.isnan(Sreflect[0,0,0]):
         # no reflect measurement available
         a11 = np.sqrt(a11b11) 
         b11 = a11
     else:
-        # solve for a11/b11, a11 and b11 (use redundant reflect measurement, if available)
+        # use redundant reflect measurement, if available
         reflect_est = reflect_est*np.exp(-2*gamma*reflect_offset)
-        Mr = np.array([s2t(x, pseudo=True).flatten('F') for x in Sreflect]).T
-        T  = X_inv@Mr
-        a11_b11 = -T[2,:]/T[1,:]
+        Sreflect_cal = np.array([LFTinv(E_, s) for s in Sreflect])
+        R = np.vstack((Sreflect_cal[:, 0, 0], Sreflect_cal[:, 1, 1]))
+        u,_,_ = np.linalg.svd(R)   # rank-1 recovery from all reflect measurements (if multiple)
+        a11_b11 = u[0,0]/u[1,0]    # this is a11/b11
         a11 = np.sqrt(a11_b11*a11b11)
         b11 = a11b11/a11
-        G_cal = ( (Sreflect[:,0,0] - a12)/(1 - Sreflect[:,0,0]*a21_a11)/a11 + (Sreflect[:,1,1] + b21)/(1 + Sreflect[:,1,1]*b12_b11)/b11 )/2  # average
-        for inx,(Gcal,Gest) in enumerate(zip(G_cal, reflect_est)):
-            if abs(Gcal - Gest) > abs(Gcal + Gest):
-                a11[inx]   = -a11[inx]
-                b11[inx]   = -b11[inx]
-                G_cal[inx] = -G_cal[inx]
-        a11 = a11.mean()
-        b11 = b11.mean()
+
+        # resolve the sign by comparing estimate to measured reflect.
+        G_cal = (Sreflect_cal[:,0,0]/a11 + Sreflect_cal[:,1,1]/b11)/2
+        if np.abs(G_cal + reflect_est).sum() < np.abs(G_cal - reflect_est).sum():
+            G_cal = -G_cal
+            a11   = -a11
+            b11   = -b11
+        # new reflect estimate for next frequency point.
         reflect_est = G_cal*np.exp(2*gamma*reflect_offset)
 
     X  = X_@np.diag([a11b11, b11, a11, 1]) # build the calibration matrix (de-normalize)

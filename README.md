@@ -1,6 +1,6 @@
 # Multiline TRL Calibration
 
-**NOTE:** The TUG multiline TRL procedure is already part of the [scikit-rf package](https://scikit-rf.readthedocs.io/en/latest/api/calibration/generated/skrf.calibration.calibration.TUGMultilineTRL.html).
+**NOTE:** The TUG multiline TRL procedure is already part of the [scikit-rf package](https://scikit-rf.readthedocs.io/en/latest/api/calibration/generated/skrf.calibration.calibration.TUGMultilineTRL.html). The code in this repository contains the most up-to-date changes, including experimental features.
 
 This repository contains two multiline TRL calibration implementations:
 
