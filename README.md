@@ -25,11 +25,11 @@ _TUG multiline TRL [1]_:
 - The weighting matrix minimizes eigenvector sensitivity by maximizing the eigengap (distance between eigenvalues).
 - No common line is needed — all measurements are combined at once.
 
-For uncertainty propagation in multiline calibration, see: <https://github.com/ZiadHatab/uncertainty-multiline-trl-calibration>
+For uncertainty propagation in multiline calibration [4], see: <https://github.com/ZiadHatab/uncertainty-multiline-trl-calibration>
 
-For a thru-free multiline method (no thru standard required, nor reference plane shifting), see: <https://github.com/ZiadHatab/thru-free-multiline-calibration>
+For a thru-free multiline method (no thru standard required [5], nor reference plane shifting), see: <https://github.com/ZiadHatab/thru-free-multiline-calibration>
 
-For guidance on designing calibration kits and specifying line lengths, see: <https://github.com/ZiadHatab/line-length-multiline-trl-calibration>
+For guidance on designing calibration kits and specifying line lengths [6], see: <https://github.com/ZiadHatab/line-length-multiline-trl-calibration>
 
 **NOTE:** The optimization procedure for computing the propagation constant described in [1] has been removed. The weighting matrix is now derived via low-rank Takagi decomposition [4], and the propagation constant is estimated via linear least squares.
 
@@ -179,7 +179,7 @@ _Low noise_ | _High noise_
 
 ## Citing
 
-If you use this code, please cite [1] and [4].
+If you use this code, please cite [1,4,5,6].
 
 ## References
 
@@ -190,6 +190,13 @@ If you use this code, please cite [1] and [4].
 [3] R. B. Marks, "A multiline method of network analyzer calibration," in _IEEE Transactions on Microwave Theory and Techniques_, vol. 39, no. 7, pp. 1205-1215, July 1991, doi: [10.1109/22.85388](http://dx.doi.org/10.1109/22.85388).
 
 [4] Z. Hatab, M. E. Gadringer, and W. Bösch, "Propagation of Linear Uncertainties through Multiline Thru-Reflect-Line Calibration," in _IEEE Transactions on Instrumentation and Measurement_, vol. 72, pp. 1-9, 2023, doi: [10.1109/TIM.2023.3296123](http://dx.doi.org/10.1109/TIM.2023.3296123).
+
+[5] Z. Hatab, M. E. Gadringer and W. Bösch, "A Thru-Free Multiline Calibration,"
+    in IEEE Transactions on Instrumentation and Measurement, vol. 72, pp. 1-9, 2023, doi: [10.1109/TIM.2023.3308226](https://doi.org/10.1109/TIM.2023.3308226).
+
+[6] Z. Hatab, M. E. Gadringer and W. Bösch, "The Choice of Line Lengths in Multiline
+    Thru-Reflect-Line Calibration," in IEEE Transactions on Instrumentation and Measurement,
+    vol. 75, pp. 8005423-8005423, 2026, doi: [10.1109/TIM.2026.3704158](https://doi.org/10.1109/TIM.2026.3704158).
 
 ## License
 

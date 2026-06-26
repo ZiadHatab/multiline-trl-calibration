@@ -4,55 +4,34 @@
 TUG Multiline TRL Calibration (TUGmTRL)
 =======================================
 
-This module implements the improved TUG multiline TRL calibration algorithm
-as described in [1,4]. It is designed for optimal combination of all line
-measurements using a single, weighted eigenvalue problem. The weighting
-matrix is derived via low-rank Takagi decomposition, maximizing the eigengap
-and minimizing eigenvector sensitivity. No assumptions are made about the
-type of statistical error in the measurements, and no common line is
-required---all measurements are combined at once.
+This module implements the TUG multiline TRL calibration algorithm [1,2].
+All line measurements are combined at once into a single 4x4 weighted eigenvalue
+problem, with the weighting matrix derived via low-rank Takagi decomposition to
+maximize the eigengap and minimize eigenvector sensitivity. The weighting is applied
+directly to the measurements: no assumptions are made about the measurement error
+statistics, no common line is required, and the propagation constant is estimated
+via linear least squares.
 
-Additionally, I modified the Thru normalization step, which is now done with S-parameters 
-instead of T-parameters as in done in [5]. Multiple reflect measurements are supported 
-and handled via rank-1 recovery. There is also an option to apply scaling to the line measurements 
-with repeated lengths and change the L-norm weighting in the eigenvalue problem (see appendix section in [6])
-
-This implementation is distinct from the classical MultiCal algorithm from
-NIST [2,3], which solves N-1 eigenvalue problems and combines their results
-using a Gauss-Markov estimator. In MultiCal, weights are applied to the
-eigenvectors, not directly to the measurements, and a common line is selected
-during calibration, which can change across frequencies and cause
-discontinuities.
-
-Key Features (TUGmTRL):
-- No assumptions about measurement error statistics.
-- All line measurements are optimally combined into a single 4×4 weighted
-    eigenvalue problem.
-- The weighting matrix is derived via Takagi decomposition [4].
-- The propagation constant is estimated via linear least squares.
-- No common line selection is required.
+The Thru normalization is done with S-parameters instead of T-parameters [3],
+multiple reflect measurements are supported via rank-1 recovery, and measurements
+with repeated lengths can be scaled along with the L-norm weighting of the
+eigenvalue problem (see appendix in [4]).
 
 References:
 [1] Z. Hatab, M. Gadringer and W. Bösch, "Improving The Reliability of The
     Multiline TRL Calibration Algorithm," 2022 98th ARFTG Microwave
     Measurement Conference (ARFTG), 2022, pp. 1-5,
     doi: 10.1109/ARFTG52954.2022.9844064.
-[2] D. C. DeGroot, J. A. Jargon and R. B. Marks, "Multiline TRL revealed,"
-    60th ARFTG Conference Digest, Fall 2002, pp. 131-155,
-    doi: 10.1109/ARFTGF.2002.1218696.
-[3] R. B. Marks, "A multiline method of network analyzer calibration,"
-    IEEE Transactions on Microwave Theory and Techniques, vol. 39, no. 7,
-    pp. 1205-1215, July 1991, doi: 10.1109/22.85388.
-[4] Z. Hatab, M. E. Gadringer, and W. Bösch, "Propagation of Linear
+[2] Z. Hatab, M. E. Gadringer, and W. Bösch, "Propagation of Linear
     Uncertainties through Multiline Thru-Reflect-Line Calibration,"
     IEEE Transactions on Instrumentation and Measurement, vol. 72, pp. 1-9,
     2023, doi: 10.1109/TIM.2023.3296123.
-[5] Z. Hatab, M. E. Gadringer and W. Bösch, "A Thru-Free Multiline Calibration," 
-    in IEEE Transactions on Instrumentation and Measurement, vol. 72, pp. 1-9, 2023, 
+[3] Z. Hatab, M. E. Gadringer and W. Bösch, "A Thru-Free Multiline Calibration,"
+    in IEEE Transactions on Instrumentation and Measurement, vol. 72, pp. 1-9, 2023,
     Art no. 1008709, doi: 10.1109/TIM.2023.3308226.
-[6] Z. Hatab, M. E. Gadringer, and W. Bösch, "The Choice of Line Lengths in 
-    Multiline Thru-Reflect-Line Calibration," 
-    arXiv e-print: https://arxiv.org/abs/2512.18641
+[4] Z. Hatab, M. E. Gadringer and W. Bösch, "The Choice of Line Lengths in Multiline
+    Thru-Reflect-Line Calibration," in IEEE Transactions on Instrumentation and Measurement,
+    vol. 75, pp. 8005423-8005423, 2026, Art no. 8005423, doi: 10.1109/TIM.2026.3704158.
 
 Note:
 -----
@@ -65,7 +44,6 @@ frequency points.
 import numpy as np 
 
 # constants
-c0 = 299792458
 Q  = np.array([[0,0,0,1], [0,-1,0,0], [0,0,-1,0], [1,0,0,0]])
 P  = np.array([[1,0,0,0], [0, 0,1,0], [0,1, 0,0], [0,0,0,1]])
 P2 = np.array([[0,1],[1,0]])  # 2x2 permutation matrix
@@ -78,26 +56,10 @@ def s2t(S, pseudo=False):
     T[1,1] = 1
     return T if pseudo else T/S[1,0]
 
-def t2s(T, pseudo=False):
-    S = T.copy()
-    S[0,0] = T[0,1]
-    S[0,1] = T[0,0]*T[1,1]-T[0,1]*T[1,0]
-    S[1,0] = 1
-    S[1,1] = -T[1,0]
-    return S if pseudo else S/T[1,1]
-
-def LFT(E, S):
-    # Linear fractional transformation
-    # R. A. Speciale, "Projective Matrix Transformations in Microwave Network Theory," 
-    #        1981 IEEE MTT-S International Microwave Symposium Digest, Los Angeles, CA, USA.
-    N = S.shape[0]
-    E11, E12, E21, E22 = E[:N,:N], E[:N,N:], E[N:,:N], E[N:,N:]
-    return (E11@S + E12)@np.linalg.inv(E21@S + E22)
-
 def LFTinv(E, S):
     # inverse linear fractional transformation
     # R. A. Speciale, "Projective Matrix Transformations in Microwave Network Theory," 
-    #        1981 IEEE MTT-S International Microwave Symposium Digest, Los Angeles, CA, USA.
+    # 1981 IEEE MTT-S International Microwave Symposium Digest, Los Angeles, CA, USA.
     N = S.shape[0]
     E11, E12, E21, E22 = E[:N,:N], E[:N,N:], E[N:,:N], E[N:,N:]
     return np.linalg.inv(S@E21 - E11)@(E12 - S@E22)
@@ -157,9 +119,14 @@ def solve_quadratic(v1, v2, inx, x_est):
         k0 = v21*v24/v22**2 - v23/v22
         c1 = np.roots([k2,k1,k0])*np.ones(2)
         c2 = (1 - c1*v12)/v22
-    x = np.array( [v1*x + v2*y for x,y in zip(c1,c2)] )  # 2 solutions
+    x = np.array([v1*a + v2*b for a,b in zip(c1,c2)])  # 2 solutions
     mininx = np.argmin( abs(x - x_est).sum(axis=1) )
     return x[mininx]
+
+def project_lambda(gamma, lengths, W):
+    # projection of z=exp(-gamma*l) and y=1/z onto W (this is how lambda is defined)
+    z = np.exp(-gamma*lengths)
+    return (1/z).dot(W).dot(z)
 
 def mTRL(Slines, lengths, Sreflect, gamma_est, reflect_est, reflect_offset,
          compensate_repeated_lines, lnorm):
@@ -199,14 +166,12 @@ def mTRL(Slines, lengths, Sreflect, gamma_est, reflect_est, reflect_offset,
     y = vh[0,:]  # ambiguous up to a scaling factor
     
     ## pick the sign of W and swap z and y if needed.
-    z_est = np.exp(-gamma_est*lengths)
-    y_est = 1/z_est
-    lambd_est = y_est.dot(W).dot(z_est)  # projection of the estimated z and y onto the weighting matrix W. This is how lambda is defined.
+    lambd_est = project_lambda(gamma_est, lengths, W)
     if abs(lambd_est - lambd) > abs(lambd_est + lambd):
         W = -W
         y, z = z, y  # swap z and y if the sign of W is flipped
     
-    ## incorporate scaling to the weighting matrix. See [6] for details.
+    ## incorporate scaling to the weighting matrix. See [4] for details.
     # S1: Percentage of occurrence for redundant (duplicate) lengths:
     # e.g., [0, 2, 3, 4, 3] -> [1, 1, 0.5, 1, 0.5]
     _, inv, counts = np.unique(lengths, return_inverse=True, return_counts=True)
@@ -225,14 +190,9 @@ def mTRL(Slines, lengths, Sreflect, gamma_est, reflect_est, reflect_offset,
     F = M@WS@Dinv@M.T@P@Q
     eigval, eigvec = np.linalg.eig(F)
     inx = np.argsort(abs(eigval))
-    # null space
-    v2 = eigvec[:,inx[0]]
-    v3 = eigvec[:,inx[1]]
-    # range space
-    v1 = eigvec[:,inx[2]]
-    v4 = eigvec[:,inx[3]]
-    # eigenvalue from the eigenvalue problem should be same to the one computed from Takagi decomposition.
-    lambd_eigval = (eigval[inx[3]] - eigval[inx[2]])/2  
+    v2, v3, v1, v4 = eigvec[:, inx].T  # v2,v3 span the null space; v1,v4 the range space
+    # eigenvalue from the eigenvalue problem should match the one from Takagi decomposition.
+    lambd_eigval = (eigval[inx[3]] - eigval[inx[2]])/2
     if abs(lambd_eigval - lambd_S) > abs(lambd_eigval + lambd_S):
         v1, v4 = v4, v1  # swap if assumed order is wrong.
     # build estimates for x1_, x2_, x3_, and x4 from the eigenvectors 
@@ -277,29 +237,20 @@ def mTRL(Slines, lengths, Sreflect, gamma_est, reflect_est, reflect_offset,
     z, y = s21, 1/s21
     gamma2 = compute_gamma(z, y, lengths, gamma_est)
 
-    # choose which gamma solution approach is more consistent with known lambda.
-    z1 = np.exp(-gamma1*lengths)
-    y1 = 1/z1
-    lambd1 = y1.dot(W).dot(z1)
-    z2 = np.exp(-gamma2*lengths)
-    y2 = 1/z2
-    lambd2 = y2.dot(W).dot(z2)
-    if abs(lambd1 - lambd) < abs(lambd2 - lambd):
-        gamma = gamma1
-    else:
-        gamma = gamma2
+    # choose which gamma solution is more consistent with known lambda.
+    lambd1 = project_lambda(gamma1, lengths, W)
+    lambd2 = project_lambda(gamma2, lengths, W)
+    gamma = gamma1 if abs(lambd1 - lambd) < abs(lambd2 - lambd) else gamma2
     
     ## solve for a11b11 and K from Thru measurement. 
-    # using S-parameter formulation [5]. Forces S21=S12=1. 
+    # using S-parameter formulation [3]. Forces S21=S12=1.
     k = 1/Slines_cal[0,1,0]
     a11b11  = Slines_cal[0,0,1]/k
     
     ## solve for a11 and b11 using the reflect measurement, if available. 
     # otherwise, set a11 = b11 = sqrt(a11b11).
     if np.isnan(Sreflect[0,0,0]):
-        # no reflect measurement available
-        a11 = np.sqrt(a11b11) 
-        b11 = a11
+        a11 = b11 = np.sqrt(a11b11)  # no reflect measurement available
     else:
         # use redundant reflect measurement, if available
         reflect_est = reflect_est*np.exp(-2*gamma*reflect_offset)
@@ -313,9 +264,7 @@ def mTRL(Slines, lengths, Sreflect, gamma_est, reflect_est, reflect_offset,
         # resolve the sign by comparing estimate to measured reflect.
         G_cal = (Sreflect_cal[:,0,0]/a11 + Sreflect_cal[:,1,1]/b11)/2
         if np.abs(G_cal + reflect_est).sum() < np.abs(G_cal - reflect_est).sum():
-            G_cal = -G_cal
-            a11   = -a11
-            b11   = -b11
+            G_cal, a11, b11 = -G_cal, -a11, -b11
         # new reflect estimate for next frequency point.
         reflect_est = G_cal*np.exp(2*gamma*reflect_offset)
 
