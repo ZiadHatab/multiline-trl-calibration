@@ -27,7 +27,7 @@ _TUG multiline TRL [1]_:
 
 For uncertainty propagation in multiline calibration [4], see: <https://github.com/ZiadHatab/uncertainty-multiline-trl-calibration>
 
-For a thru-free multiline method (no thru standard required [5], nor reference plane shifting), see: <https://github.com/ZiadHatab/thru-free-multiline-calibration>
+For a thru-free multiline method (no thru standard required, nor reference plane shifting) [5], see: <https://github.com/ZiadHatab/thru-free-multiline-calibration>
 
 For guidance on designing calibration kits and specifying line lengths [6], see: <https://github.com/ZiadHatab/line-length-multiline-trl-calibration>
 
@@ -171,11 +171,15 @@ Full 1st-tier calibration including switch terms, using raw VNA s2p data.
 
 ### Example 3 — Statistical comparison
 
-Monte Carlo comparison (1000 trials) of calibration methods under additive noise. Modify the dataset or noise type for your own analysis.
+Monte Carlo comparison (1000 trials) of NIST MultiCal, TUG mTRL, and NIST in scikit-rf under additive noise. The mean absolute error (MAE) of the calibration coefficients is plotted in dB, and the MAE of the extracted effective permittivity and loss per unit length is also computed. Modify the dataset or noise type for your own analysis.
 
 ![](images/example_3_std_0_1.png)  |  ![](images/example_3_std_0_2.png)
 :-------------------------:|:-------------------------:
-_Low noise_ | _High noise_
+_Low noise (MAE in dB)_ | _High noise (MAE in dB)_
+
+![](images/example_3_ereff_loss_std_0_1.png)  |  ![](images/example_3_ereff_loss_std_0_2.png)
+:-------------------------:|:-------------------------:
+_Low noise (effective permittivity and loss MAE)_ | _High noise (effective permittivity and loss MAE)_
 
 ## Citing
 

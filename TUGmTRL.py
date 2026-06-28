@@ -27,11 +27,11 @@ References:
     IEEE Transactions on Instrumentation and Measurement, vol. 72, pp. 1-9,
     2023, doi: 10.1109/TIM.2023.3296123.
 [3] Z. Hatab, M. E. Gadringer and W. Bösch, "A Thru-Free Multiline Calibration,"
-    in IEEE Transactions on Instrumentation and Measurement, vol. 72, pp. 1-9, 2023,
-    Art no. 1008709, doi: 10.1109/TIM.2023.3308226.
+    in IEEE Transactions on Instrumentation and Measurement, vol. 72, pp. 1-9, 2023, 
+    doi: 10.1109/TIM.2023.3308226.
 [4] Z. Hatab, M. E. Gadringer and W. Bösch, "The Choice of Line Lengths in Multiline
     Thru-Reflect-Line Calibration," in IEEE Transactions on Instrumentation and Measurement,
-    vol. 75, pp. 8005423-8005423, 2026, Art no. 8005423, doi: 10.1109/TIM.2026.3704158.
+    vol. 75, pp. 8005423-8005423, 2026, doi: 10.1109/TIM.2026.3704158.
 
 Note:
 -----
@@ -77,26 +77,29 @@ def compute_G_with_takagi(A):
 
 def WLS(x,y,w=1):
     # Weighted least-squares for a single parameter estimation
-    x = x*(1+0j) # force x to be complex type 
+    x = x*(1+0j) # force x to be complex type
     return (x.conj().dot(w).dot(y))/(x.conj().dot(w).dot(x))
 
 def Vgl(N):
     # inverse covariance matrix for propagation constant computation
     return np.eye(N-1, dtype=complex) - (1/N)*np.ones(shape=(N-1, N-1), dtype=complex)
 
-def compute_gamma(z, y, lengths, gamma_est, inx=0):
-    # gamma = alpha + 1j*beta is determined through linear weighted least-squares    
+def compute_gamma(z, lengths, gamma_est, inx=None):
+    # gamma = alpha + 1j*beta is determined through linear weighted least-squares.
+    # when inx is None, reference the line that minimizes the largest length difference
+    # (smallest max baseline), which maximizes the unwrapping margin |dbeta*(l-l_ref)| < pi.
+    if inx is None:
+        inx = np.argmin([abs(lengths - l).max() for l in lengths])
     lengths = lengths - lengths[inx]
     z = z/z[inx]
-    y = y/y[inx]
     del_inx = np.arange(len(lengths)) != inx  # get rid of the reference line (i.e., thru)
 
     l = -lengths[del_inx]
-    gamma_l = np.log((z + 1/y)/2)[del_inx]
+    gamma_l = np.log(z[del_inx])
     n = np.round( (gamma_l - gamma_est*l).imag/np.pi/2 )
     gamma_l = gamma_l - 1j*2*np.pi*n # unwrap
     gamma = WLS(l, gamma_l, Vgl(len(l)+1))
-    
+
     return gamma.real + 1j*abs(gamma.imag) # ensure delay is positive (causality) in case unwrapping is not perfect.
 
 def solve_quadratic(v1, v2, inx, x_est):
@@ -159,17 +162,16 @@ def mTRL(Slines, lengths, Sreflect, gamma_est, reflect_est, reflect_offset,
     W = (G@np.array([[0,1j],[-1j,0]])@G.T).conj()
     kappa = 2*lambd/abs(W).sum() # this is the normalized eigenvalue without scaling (for effective phase computation)
 
-    ## compute z = exp(-gamma*length) and y = 1/z from matrix G.
+    ## compute z = exp(-gamma*length) from matrix G (only z is needed for gamma estimation).
     zy = G@np.array([[1,-1j],[1j,1]])@G.T  # could be np.outer(z,y) or np.outer(y,z) depending on the sign of W
-    u,_,vh = np.linalg.svd(zy)  # rank-1 recovery
-    z = u[:,0]   # ambiguous up to a scaling factor
-    y = vh[0,:]  # ambiguous up to a scaling factor
-    
-    ## pick the sign of W and swap z and y if needed.
+    eigval, eigvec = np.linalg.eig(zy)
+    z = eigvec[:,np.argmax(abs(eigval))]
+
+    ## pick the sign of W and invert z if needed.
     lambd_est = project_lambda(gamma_est, lengths, W)
     if abs(lambd_est - lambd) > abs(lambd_est + lambd):
         W = -W
-        y, z = z, y  # swap z and y if the sign of W is flipped
+        z = 1/z  # invert z (i.e. swap z and y) if the sign of W is flipped
     
     ## incorporate scaling to the weighting matrix. See [4] for details.
     # S1: Percentage of occurrence for redundant (duplicate) lengths:
@@ -230,18 +232,17 @@ def mTRL(Slines, lengths, Sreflect, gamma_est, reflect_est, reflect_offset,
     s21 = vh[0,:]/vh[0,0]  # this is exp(-gamma*length) (normalized to the thru)
     # k2a11b11 = u[1,0]/u[0,0]   # k^2*a11*b11
 
-    ## compute propagation constant using error terms
-    # method-1: use z, y from the takagi decomposition (matrix G)
-    gamma1 = compute_gamma(z, y, lengths, gamma_est)
-    # method-2: use z, y from de-embedding the lines
-    z, y = s21, 1/s21
-    gamma2 = compute_gamma(z, y, lengths, gamma_est)
+    ## compute propagation constant using linear weighted least-squares
+    # gamma1 from the Takagi decomposition (z from matrix G): used for sign selection,
+    # the reflect offset, and as the estimate handed to the next frequency point.
+    gamma1 = compute_gamma(z, lengths, gamma_est)
+    # gamma2 from de-embedding the lines: this is the final propagation constant returned to the user.
+    gamma2 = compute_gamma(s21, lengths, gamma_est)
+    # hand over the most accurate gamma to the next point: overwrite gamma1 with gamma2
+    # only if gamma2's projected lambda is closer to the Takagi lambda.
+    if abs(project_lambda(gamma2, lengths, W) - lambd) < abs(project_lambda(gamma1, lengths, W) - lambd):
+        gamma1 = gamma2
 
-    # choose which gamma solution is more consistent with known lambda.
-    lambd1 = project_lambda(gamma1, lengths, W)
-    lambd2 = project_lambda(gamma2, lengths, W)
-    gamma = gamma1 if abs(lambd1 - lambd) < abs(lambd2 - lambd) else gamma2
-    
     ## solve for a11b11 and K from Thru measurement. 
     # using S-parameter formulation [3]. Forces S21=S12=1.
     k = 1/Slines_cal[0,1,0]
@@ -253,7 +254,7 @@ def mTRL(Slines, lengths, Sreflect, gamma_est, reflect_est, reflect_offset,
         a11 = b11 = np.sqrt(a11b11)  # no reflect measurement available
     else:
         # use redundant reflect measurement, if available
-        reflect_est = reflect_est*np.exp(-2*gamma*reflect_offset)
+        reflect_est = reflect_est*np.exp(-2*gamma1*reflect_offset)
         Sreflect_cal = np.array([LFTinv(E_, s) for s in Sreflect])
         R = np.vstack((Sreflect_cal[:, 0, 0], Sreflect_cal[:, 1, 1]))
         u,_,_ = np.linalg.svd(R)   # rank-1 recovery from all reflect measurements (if multiple)
@@ -266,10 +267,10 @@ def mTRL(Slines, lengths, Sreflect, gamma_est, reflect_est, reflect_offset,
         if np.abs(G_cal + reflect_est).sum() < np.abs(G_cal - reflect_est).sum():
             G_cal, a11, b11 = -G_cal, -a11, -b11
         # new reflect estimate for next frequency point.
-        reflect_est = G_cal*np.exp(2*gamma*reflect_offset)
+        reflect_est = G_cal*np.exp(2*gamma1*reflect_offset)
 
     X  = X_@np.diag([a11b11, b11, a11, 1]) # build the calibration matrix (de-normalize)
 
-    return X, k, gamma, reflect_est, lambd, kappa, lambd_S, kappa_S
+    return X, k, gamma2, gamma1, reflect_est, lambd, kappa, lambd_S, kappa_S
 
 # EOF

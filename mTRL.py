@@ -187,13 +187,14 @@ class mTRL:
             Slines   = [correct_switch_term(x,sw[0],sw[1]) for x in Slines] if np.any(sw) else Slines
             Sreflect = [correct_switch_term(x,sw[0],sw[1]) for x in Sreflect] if np.any(sw) else Sreflect
             
-            X, k, gamma, reflect0_cal, lambd, kappa, lambd_S, kappa_S = TUGmTRL.mTRL(Slines, lengths, Sreflect, 
-                                                                                     gamma0, reflect0, reflect_offset, 
-                                                                                     compensate_repeated_lines, lnorm)
-            # update gamma0 for the next frequency point.
+            X, k, gamma, gamma_est, reflect0_cal, lambd, kappa, lambd_S, kappa_S = TUGmTRL.mTRL(Slines, lengths, Sreflect,
+                                                                                                gamma0, reflect0, reflect_offset,
+                                                                                                compensate_repeated_lines, lnorm)
+            # update gamma0 for the next frequency point. gamma_est is the Takagi-based estimate
+            # used for sign selection, not the final gamma returned to the user.
             # This is better than recomputing ereff, to avoid sqrt sign inconsistencies.
             if inx+1 < len(self.f):
-                gamma0 = (gamma/f)*self.f[inx+1]
+                gamma0 = (gamma_est/f)*self.f[inx+1]
             
             # update reflect0 if recursive_reflect is True. 
             # This can improve the results if the initial estimate of the reflect standard is not accurate.
@@ -250,15 +251,6 @@ class mTRL:
             E11,E12,E21,E22 = E[:2,:2], E[:2,2:], E[2:,:2], E[2:,2:]
             S_cal.append( np.linalg.inv(s@E21-E11)@(E12-s@E22) )
             
-            '''
-            # Error-box correcrion procedure (unstable for pure reflect measurements)
-            xinv = np.linalg.pinv(x)
-            M_ = np.array([-s[0,0]*s[1,1]+s[0,1]*s[1,0], -s[1,1], s[0,0], 1])
-            T_ = xinv@M_
-            s21_cal = k*s[1,0]/T_[-1]
-            T_ = T_/T_[-1]
-            S_cal.append([[T_[2], (T_[0]-T_[2]*T_[1])/s21_cal],[s21_cal, -T_[1]]])
-            '''
         S_cal = np.array(S_cal)
         freq  = NW.frequency
         
