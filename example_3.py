@@ -159,8 +159,8 @@ if __name__ == '__main__':
     gamma_ideal = cal.gamma
 
     # Monte Carlo Analysis
-    M = 1000            # number of trials
-    sigma_noise = 0.2 # noise standard deviation
+    M = 100            # number of trials
+    sigma_noise = 0.2  # noise standard deviation
     print(f'\n\nWith noise... ({M} trials, scikit-rf {rf.__version__})')
 
     # the trials are independent, so run them in parallel across all CPU cores.
@@ -339,7 +339,7 @@ if __name__ == '__main__':
         fig.legend(handles, labels, bbox_to_anchor=(0.5, 1.0),
                    loc='lower center', ncol=3, borderaxespad=0
                    )
-        plt.suptitle(f"Mean Absolute Error (MAE) of effective permittivity and loss. Noise std = {sigma_noise:.2f}", verticalalignment='bottom').set_y(1.18)
+        plt.suptitle(f"Mean Absolute Error (MAE) of effective permittivity and loss. Noise std = {sigma_noise:.2f}", verticalalignment='bottom').set_y(1.12)
         #fig.savefig(fig_dir + f'example_3_ereff_loss_{suffix}.png', dpi=600, bbox_inches='tight')
 
     plt.show()

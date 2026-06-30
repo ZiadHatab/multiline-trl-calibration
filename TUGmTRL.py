@@ -126,10 +126,11 @@ def solve_quadratic(v1, v2, inx, x_est):
     mininx = np.argmin( abs(x - x_est).sum(axis=1) )
     return x[mininx]
 
-def project_lambda(gamma, lengths, W):
-    # projection of z=exp(-gamma*l) and y=1/z onto W (this is how lambda is defined)
+def compute_lambd(gamma, lengths):
     z = np.exp(-gamma*lengths)
-    return (1/z).dot(W).dot(z)
+    y = 1/z
+    W = (np.outer(y,z) - np.outer(z,y)).conj()
+    return abs(W.conj()*W).sum()/2
 
 def mTRL(Slines, lengths, Sreflect, gamma_est, reflect_est, reflect_offset,
          compensate_repeated_lines, lnorm):
@@ -168,7 +169,8 @@ def mTRL(Slines, lengths, Sreflect, gamma_est, reflect_est, reflect_offset,
     z = eigvec[:,np.argmax(abs(eigval))]
 
     ## pick the sign of W and invert z if needed.
-    lambd_est = project_lambda(gamma_est, lengths, W)
+    z_est = np.exp(-gamma_est*lengths)
+    lambd_est = (1/z_est).dot(W).dot(z_est)
     if abs(lambd_est - lambd) > abs(lambd_est + lambd):
         W = -W
         z = 1/z  # invert z (i.e. swap z and y) if the sign of W is flipped
@@ -182,7 +184,7 @@ def mTRL(Slines, lengths, Sreflect, gamma_est, reflect_est, reflect_offset,
     # S2: change L-norm weighting of the eigenvalue problem (e.g., L1, L2, etc.)
     S2 = abs(W)**(lnorm-1)
     S  = S1*S2 # combined scaling to account for both repeated lines and norm-weighting
-    WS  = W*S  # new weighting matrix scaled by S.
+    WS = W*S  # new weighting matrix scaled by S.
     
     # new scaled eigenvalue and normalized eigenvalue after scaling the weighting matrix by S.
     lambd_S = 0.5*abs(WS.conj()*W).sum()
@@ -191,12 +193,10 @@ def mTRL(Slines, lengths, Sreflect, gamma_est, reflect_est, reflect_offset,
     ## weighted eigenvalue problem
     F = M@WS@Dinv@M.T@P@Q
     eigval, eigvec = np.linalg.eig(F)
-    inx = np.argsort(abs(eigval))
-    v2, v3, v1, v4 = eigvec[:, inx].T  # v2,v3 span the null space; v1,v4 the range space
-    # eigenvalue from the eigenvalue problem should match the one from Takagi decomposition.
-    lambd_eigval = (eigval[inx[3]] - eigval[inx[2]])/2
-    if abs(lambd_eigval - lambd_S) > abs(lambd_eigval + lambd_S):
-        v1, v4 = v4, v1  # swap if assumed order is wrong.
+    # sort the eigenvectors. F has eigenvalues [-lambda, 0, 0, +lambda] -> v1, v2, v3, v4
+    inx_sort = np.argsort(eigval.real)
+    v1, v2, v3, v4 = eigvec[:, inx_sort].T  # v2,v3 span the null space; v1,v4 the range space
+    
     # build estimates for x1_, x2_, x3_, and x4 from the eigenvectors 
     # these are used as initial estimates for solving the quadratic equations below
     x1__est = v1/v1[0]
@@ -227,7 +227,7 @@ def mTRL(Slines, lengths, Sreflect, gamma_est, reflect_est, reflect_offset,
     # recovers S21 = exp(-gamma*length) and factor k^2*a11*b11 from rank-1 recovery from all lines.
     # k^2*a11*b11 not used, as transmission normalization is enforced by the thru measurement.
     Slines_cal = np.array([LFTinv(E_, s) for s in Slines])
-    R = np.vstack(( Slines_cal[:, 1, 0], Slines_cal[:, 0, 1]))
+    R = np.vstack((Slines_cal[:, 1, 0], Slines_cal[:, 0, 1]))
     u,_,vh = np.linalg.svd(R)  # rank-1 recovery
     s21 = vh[0,:]/vh[0,0]  # this is exp(-gamma*length) (normalized to the thru)
     # k2a11b11 = u[1,0]/u[0,0]   # k^2*a11*b11
@@ -239,8 +239,7 @@ def mTRL(Slines, lengths, Sreflect, gamma_est, reflect_est, reflect_offset,
     # gamma2 from de-embedding the lines: this is the final propagation constant returned to the user.
     gamma2 = compute_gamma(s21, lengths, gamma_est)
     # hand over the most accurate gamma to the next point: overwrite gamma1 with gamma2
-    # only if gamma2's projected lambda is closer to the Takagi lambda.
-    if abs(project_lambda(gamma2, lengths, W) - lambd) < abs(project_lambda(gamma1, lengths, W) - lambd):
+    if abs(compute_lambd(gamma2, lengths) - lambd) < abs(compute_lambd(gamma1, lengths) - lambd):
         gamma1 = gamma2
 
     ## solve for a11b11 and K from Thru measurement. 

@@ -40,3 +40,6 @@ GEMINI.md
 Thumbs.db
 .vscode/
 .idea/
+
+# Local scratch / sandbox (not tracked)
+_ignored/
